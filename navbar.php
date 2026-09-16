@@ -189,6 +189,23 @@ function nav_active($key, $active) {
     </a>
 
     <?php if (in_array($user['designation'], ['admin', 'general_manager'])): ?>
+    <div class="nav-section-title">Restaurant</div>
+    <a href="restaurant_front_desk.php" class="nav-link <?= nav_active('restaurant_front_desk', $active_menu) ?>">
+        <i class="bi bi-shop"></i> Restaurant Front Desk
+    </a>
+    <a href="restaurant_order_list.php" class="nav-link <?= nav_active('restaurant_order_list', $active_menu) ?>">
+        <i class="bi bi-journal-text"></i> Order List
+    </a>
+    <a href="restaurant_tables.php" class="nav-link <?= nav_active('restaurant_tables', $active_menu) ?>">
+        <i class="bi bi-table"></i> Restaurant Tables
+    </a>
+    <a href="restaurant_food_categories.php" class="nav-link <?= nav_active('restaurant_food_categories', $active_menu) ?>">
+        <i class="bi bi-tags"></i> Food Categories
+    </a>
+    <a href="restaurant_food_items.php" class="nav-link <?= nav_active('restaurant_food_items', $active_menu) ?>">
+        <i class="bi bi-egg-fried"></i> Food Items
+    </a>
+
     <div class="nav-section-title">Administration</div>
     <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
         <i class="bi bi-people"></i> Users
