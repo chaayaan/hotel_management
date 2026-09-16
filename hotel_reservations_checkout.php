@@ -81,6 +81,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'do_ch
             $errors[] = 'Payment amount cannot exceed the remaining payable amount (৳' . number_format($remaining_payable, 2) . ').';
         }
 
+        // Critical rule: checkout is blocked while any balance remains due after this payment.
+        $balance_after_payment = max(0, $remaining_payable - $final_payment_amount);
+        if (empty($errors) && $balance_after_payment > 0.01) {
+            $errors[] = 'Checkout is not allowed while a balance is due. Remaining due after this payment: ৳' . number_format($balance_after_payment, 2) . '. Please collect full payment before checking out.';
+        }
+
         if (empty($errors)) {
             mysqli_begin_transaction($conn);
             $ok = true;
@@ -270,6 +276,7 @@ require __DIR__ . '/navbar.php';
                         <label class="form-label small fw-semibold">Final Payment Amount</label>
                         <input type="number" step="0.01" min="0" name="final_payment_amount" id="final_payment_amount" class="form-control" value="0" oninput="validatePayment()">
                         <div class="form-text text-danger d-none" id="paymentError">Payment cannot exceed the remaining payable amount.</div>
+                        <div class="alert alert-warning py-2 small mt-2 d-none" id="dueBlockError"><i class="bi bi-exclamation-triangle me-1"></i>Checkout is blocked while a balance remains due. Please collect full payment first.</div>
                     </div>
                 </div>
 
@@ -337,12 +344,20 @@ function validatePayment() {
     document.getElementById('disp_due_after').innerText = '৳' + dueAfter.toFixed(2);
 
     const errBox = document.getElementById('paymentError');
+    const dueBlockBox = document.getElementById('dueBlockError');
     const btn = document.getElementById('checkoutBtn');
+
     if (payment > remaining + 0.01) {
         errBox.classList.remove('d-none');
+        dueBlockBox.classList.add('d-none');
+        btn.disabled = true;
+    } else if (dueAfter > 0.01) {
+        errBox.classList.add('d-none');
+        dueBlockBox.classList.remove('d-none');
         btn.disabled = true;
     } else {
         errBox.classList.add('d-none');
+        dueBlockBox.classList.add('d-none');
         btn.disabled = false;
     }
 }

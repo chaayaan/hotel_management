@@ -203,12 +203,15 @@ require __DIR__ . '/navbar.php';
                         <th>Nights</th>
                         <th>Total</th>
                         <th>Status</th>
+                        <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if (mysqli_num_rows($reservations) === 0): ?>
-                    <tr><td colspan="7" class="text-center text-muted py-4">No reservations found.</td></tr>
-                <?php else: while ($row = mysqli_fetch_assoc($reservations)): ?>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No reservations found.</td></tr>
+                <?php else: while ($row = mysqli_fetch_assoc($reservations)):
+                    $rbid = (int)$row['id'];
+                ?>
                     <tr>
                         <td class="fw-semibold"><?= e($row['reservation_no']) ?></td>
                         <td><?= e($row['guest_name']) ?><div class="text-muted small"><?= e($row['guest_phone']) ?></div></td>
@@ -217,6 +220,21 @@ require __DIR__ . '/navbar.php';
                         <td><?= (int)$row['reserved_nights'] ?></td>
                         <td>৳<?= number_format((float)$row['total_amount'], 2) ?></td>
                         <td><span class="badge <?= booking_status_badge($row['status']) ?>"><?= e(ucwords(str_replace('_',' ',$row['status']))) ?></span></td>
+                        <td class="text-end pe-3">
+                            <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
+                            <?php if ($row['status'] === 'reserved'): ?>
+                                <a href="hotel_reservations_checkin.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-brand"><i class="bi bi-box-arrow-in-right"></i> Check In</a>
+                                <a href="hotel_reservations_cancelled.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Cancel</a>
+                            <?php elseif ($row['status'] === 'checked_in'): ?>
+                                <a href="hotel_reservations_checkout.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-danger"><i class="bi bi-box-arrow-right"></i> Check Out</a>
+                                <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i> Receipt</a>
+                            <?php elseif ($row['status'] === 'checked_out'): ?>
+                                <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i> Receipt</a>
+                            <?php else: ?>
+                                <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> View</a>
+                            <?php endif; ?>
+                            </div>
+                        </td>
                     </tr>
                 <?php endwhile; endif; ?>
                 </tbody>

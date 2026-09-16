@@ -18,7 +18,8 @@ while ($r = mysqli_fetch_assoc($rooms_result)) {
     $rooms[] = $r;
 }
 
-// For each room, find the current active booking (checked_in) or the next upcoming reservation
+// For each room, find the current active booking (checked_in), and the NEXT upcoming reservation
+// (which may exist even if the room is currently available, occupied, or itself reserved for a nearer date)
 $room_bookings = [];
 foreach ($rooms as $r) {
     $rid = (int)$r['id'];
@@ -31,7 +32,7 @@ foreach ($rooms as $r) {
                   ORDER BY b.checkin_at DESC LIMIT 1";
     $active = mysqli_fetch_assoc(mysqli_query($conn, $activeSql));
 
-    // Upcoming reservation (not yet checked in, in the future or today)
+    // Nearest upcoming reservation not yet checked in (for the room card badge & Check-In/Cancel buttons)
     $upcomingSql = "SELECT b.*, g.full_name AS guest_name, g.phone AS guest_phone
                     FROM hotel_bookings b
                     JOIN guests g ON g.id = b.guest_id
@@ -40,7 +41,33 @@ foreach ($rooms as $r) {
                     ORDER BY b.reserved_from ASC LIMIT 1";
     $upcoming = mysqli_fetch_assoc(mysqli_query($conn, $upcomingSql));
 
-    $room_bookings[$rid] = ['active' => $active ?: null, 'upcoming' => $upcoming ?: null];
+    // Next reservation strictly AFTER whichever booking is currently occupying/reserving the room right now.
+    // This is what should show as "Next Reservation" on an occupied room's card.
+    $next_after_current = null;
+    if ($active) {
+        $nextSql = "SELECT b.*, g.full_name AS guest_name
+                    FROM hotel_bookings b
+                    JOIN guests g ON g.id = b.guest_id
+                    WHERE b.room_id = {$rid} AND b.status = 'reserved'
+                      AND b.reserved_from >= '{$active['reserved_until']}'
+                    ORDER BY b.reserved_from ASC LIMIT 1";
+        $next_after_current = mysqli_fetch_assoc(mysqli_query($conn, $nextSql)) ?: null;
+    } elseif ($upcoming) {
+        $nextSql = "SELECT b.*, g.full_name AS guest_name
+                    FROM hotel_bookings b
+                    JOIN guests g ON g.id = b.guest_id
+                    WHERE b.room_id = {$rid} AND b.status = 'reserved'
+                      AND b.id != {$upcoming['id']}
+                      AND b.reserved_from >= '{$upcoming['reserved_until']}'
+                    ORDER BY b.reserved_from ASC LIMIT 1";
+        $next_after_current = mysqli_fetch_assoc(mysqli_query($conn, $nextSql)) ?: null;
+    }
+
+    $room_bookings[$rid] = [
+        'active' => $active ?: null,
+        'upcoming' => $upcoming ?: null,
+        'next_after_current' => $next_after_current,
+    ];
 }
 
 $page_title = 'Front Desk';
@@ -81,6 +108,7 @@ require __DIR__ . '/navbar.php';
 
     .room-card-body { padding: 4px 16px 14px; font-size: 0.83rem; color: #495a52; min-height: 58px; }
     .room-card-body .guest-name { font-weight: 600; color: #1c3d2e; }
+    .next-reservation-note { font-size: 0.74rem; color: #8a6d00; background: #fff8e1; border-radius: 6px; padding: 3px 8px; display: inline-block; }
     .room-card-footer {
         padding: 10px 12px;
         border-top: 1px solid #f0f2f1;
@@ -115,6 +143,7 @@ require __DIR__ . '/navbar.php';
     $rid = (int)$r['id'];
     $active = $room_bookings[$rid]['active'];
     $upcoming = $room_bookings[$rid]['upcoming'];
+    $next_after_current = $room_bookings[$rid]['next_after_current'];
 
     // Determine display status
     if ($r['status'] === 'maintenance' || $r['status'] === 'out_of_service') {
@@ -147,15 +176,17 @@ require __DIR__ . '/navbar.php';
                 <?php elseif ($display_status === 'maintenance' || $display_status === 'out_of_service'): ?>
                     <div class="text-muted fst-italic">Room currently unavailable for booking.</div>
                 <?php else: ?>
-                    <div class="text-muted">Ready for a new reservation.</div>
+                    <div class="text-muted">Available Today</div>
+                <?php endif; ?>
+
+                <?php if ($next_after_current): ?>
+                    <div class="next-reservation-note mt-1">
+                        <i class="bi bi-calendar-event me-1"></i>Next Reservation: <?= e(date('d M', strtotime($next_after_current['reserved_from']))) ?> – <?= e(date('d M', strtotime($next_after_current['reserved_until']))) ?>
+                    </div>
                 <?php endif; ?>
             </div>
             <div class="room-card-footer">
-                <?php if ($display_status === 'available'): ?>
-                    <a href="hotel_reservations.php?room_id=<?= $rid ?>" class="btn btn-brand">
-                        <i class="bi bi-calendar-plus"></i> Reserve
-                    </a>
-                <?php elseif ($display_status === 'occupied' && $active): ?>
+                <?php if ($display_status === 'occupied' && $active): ?>
                     <a href="hotel_services.php?booking_id=<?= (int)$active['id'] ?>" class="btn btn-outline-brand">
                         <i class="bi bi-cup-hot"></i> Service
                     </a>
@@ -165,12 +196,22 @@ require __DIR__ . '/navbar.php';
                     <a href="hotel_reservations_checkout.php?booking_id=<?= (int)$active['id'] ?>" class="btn btn-danger">
                         <i class="bi bi-box-arrow-right"></i> Check Out
                     </a>
+                    <a href="hotel_reservations.php?room_id=<?= $rid ?>" class="btn btn-outline-secondary">
+                        <i class="bi bi-calendar-plus"></i> Reserve Future
+                    </a>
                 <?php elseif ($display_status === 'reserved' && $upcoming): ?>
                     <a href="hotel_reservations_checkin.php?booking_id=<?= (int)$upcoming['id'] ?>" class="btn btn-brand">
                         <i class="bi bi-box-arrow-in-right"></i> Check In
                     </a>
                     <a href="hotel_reservations_cancelled.php?booking_id=<?= (int)$upcoming['id'] ?>" class="btn btn-outline-danger">
                         <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                    <a href="hotel_reservations.php?room_id=<?= $rid ?>" class="btn btn-outline-secondary">
+                        <i class="bi bi-calendar-plus"></i> Reserve Future
+                    </a>
+                <?php elseif ($display_status === 'available'): ?>
+                    <a href="hotel_reservations.php?room_id=<?= $rid ?>" class="btn btn-brand">
+                        <i class="bi bi-calendar-plus"></i> Reserve
                     </a>
                 <?php else: ?>
                     <button class="btn btn-outline-secondary" disabled>Unavailable</button>

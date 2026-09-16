@@ -173,22 +173,11 @@ function nav_active($key, $active) {
     <a href="hotel_reservations.php" class="nav-link <?= nav_active('reservations', $active_menu) ?>">
         <i class="bi bi-calendar-check"></i> Reservations
     </a>
-    <a href="hotel_reservations_checkin.php" class="nav-link <?= nav_active('checkin', $active_menu) ?>">
-        <i class="bi bi-box-arrow-in-right"></i> Check-In
-    </a>
-    <a href="hotel_reservations_checkout.php" class="nav-link <?= nav_active('checkout', $active_menu) ?>">
-        <i class="bi bi-box-arrow-right"></i> Check-Out
-    </a>
-    <a href="hotel_reservations_cancelled.php" class="nav-link <?= nav_active('cancelled', $active_menu) ?>">
-        <i class="bi bi-x-circle"></i> Cancelled
-    </a>
     <a href="hotel_booking_list.php" class="nav-link <?= nav_active('booking_list', $active_menu) ?>">
         <i class="bi bi-journal-text"></i> Booking List
     </a>
-
-    <div class="nav-section-title">Services</div>
     <a href="hotel_services_history.php" class="nav-link <?= nav_active('services_history', $active_menu) ?>">
-        <i class="bi bi-cup-hot"></i> Service History
+        <i class="bi bi-clock-history"></i> Service History
     </a>
 
     <div class="nav-section-title">Property Setup</div>
@@ -198,17 +187,11 @@ function nav_active($key, $active) {
     <a href="hotel_room_type.php" class="nav-link <?= nav_active('room_types', $active_menu) ?>">
         <i class="bi bi-grid-3x3-gap"></i> Room Types
     </a>
-    <a href="hotel_guests.php" class="nav-link <?= nav_active('guests', $active_menu) ?>">
-        <i class="bi bi-person-vcard"></i> Guests
-    </a>
 
     <?php if (in_array($user['designation'], ['admin', 'general_manager'])): ?>
     <div class="nav-section-title">Administration</div>
     <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
         <i class="bi bi-people"></i> Users
-    </a>
-    <a href="hotel_settings.php" class="nav-link <?= nav_active('settings', $active_menu) ?>">
-        <i class="bi bi-gear"></i> Settings
     </a>
     <?php endif; ?>
 

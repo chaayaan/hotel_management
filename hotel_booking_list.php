@@ -20,12 +20,39 @@ if ($filter_status !== 'all' && in_array($filter_status, ['reserved','checked_in
     $sql .= " AND b.status = '" . mysqli_real_escape_string($conn, $filter_status) . "'";
 }
 $sql .= " ORDER BY b.created_at DESC LIMIT 200";
-$bookings = mysqli_query($conn, $sql);
+$bookings_result = mysqli_query($conn, $sql);
+
+// Build full financial rows
+$bookings = [];
+while ($b = mysqli_fetch_assoc($bookings_result)) {
+    $bid = (int)$b['id'];
+    $service_total = get_booking_services_total($conn, $bid);
+    $room_total = (float)$b['room_charge_total'];
+    $extension_total = (float)$b['extension_charge_total'];
+    $discount = (float)$b['discount'];
+    $tax = (float)$b['tax'];
+    $total_payable = max(0, $room_total + $extension_total + $service_total - $discount + $tax);
+    $total_paid = get_booking_payments_total($conn, $bid);
+    $balance_due = max(0, $total_payable - $total_paid);
+
+    $b['service_total'] = $service_total;
+    $b['extension_total'] = $extension_total;
+    $b['total_payable'] = $total_payable;
+    $b['total_paid'] = $total_paid;
+    $b['balance_due'] = $balance_due;
+    $bookings[] = $b;
+}
 
 $page_title = 'Booking List';
 $active_menu = 'booking_list';
 require __DIR__ . '/navbar.php';
 ?>
+
+<style>
+    .table-financial th, .table-financial td { white-space: nowrap; font-size: 0.82rem; }
+    .payment-status-paid { background: #d1f5e0; color: #0f5132; }
+    .payment-status-due { background: #fddede; color: #a91d2c; }
+</style>
 
 <div class="card">
     <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
@@ -42,51 +69,70 @@ require __DIR__ . '/navbar.php';
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
+            <table class="table table-hover table-financial mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Reservation #</th>
+                        <th>Booking #</th>
                         <th>Guest</th>
+                        <th>Phone</th>
                         <th>Room</th>
                         <th>From → Until</th>
-                        <th>Total</th>
                         <th>Status</th>
+                        <th class="text-end">Room Total</th>
+                        <th class="text-end">Ext. Total</th>
+                        <th class="text-end">Service Total</th>
+                        <th class="text-end">Discount</th>
+                        <th class="text-end">Tax</th>
+                        <th class="text-end">Total Payable</th>
+                        <th class="text-end">Total Paid</th>
+                        <th class="text-end">Balance Due</th>
+                        <th>Payment</th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php if (mysqli_num_rows($bookings) === 0): ?>
-                    <tr><td colspan="7" class="text-center text-muted py-4">No bookings found.</td></tr>
-                <?php else: while ($b = mysqli_fetch_assoc($bookings)):
+                <?php if (empty($bookings)): ?>
+                    <tr><td colspan="16" class="text-center text-muted py-4">No bookings found.</td></tr>
+                <?php else: foreach ($bookings as $b):
                     $bid = (int)$b['id'];
+                    $is_paid = $b['balance_due'] <= 0.009;
                 ?>
                     <tr>
                         <td class="fw-semibold"><?= e($b['reservation_no']) ?></td>
-                        <td><?= e($b['guest_name']) ?><div class="text-muted small"><?= e($b['guest_phone']) ?></div></td>
+                        <td><?= e($b['guest_name']) ?></td>
+                        <td><?= e($b['guest_phone']) ?></td>
                         <td><?= e($b['room_number']) ?></td>
-                        <td class="small"><?= e(date('d M Y', strtotime($b['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($b['reserved_until']))) ?></td>
-                        <td>৳<?= number_format((float)$b['total_amount'], 2) ?></td>
+                        <td><?= e(date('d M Y', strtotime($b['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($b['reserved_until']))) ?></td>
                         <td><span class="badge <?= booking_status_badge($b['status']) ?>"><?= e(ucwords(str_replace('_',' ',$b['status']))) ?></span></td>
+                        <td class="text-end">৳<?= number_format((float)$b['room_charge_total'], 2) ?></td>
+                        <td class="text-end">৳<?= number_format($b['extension_total'], 2) ?></td>
+                        <td class="text-end">৳<?= number_format($b['service_total'], 2) ?></td>
+                        <td class="text-end">৳<?= number_format((float)$b['discount'], 2) ?></td>
+                        <td class="text-end">৳<?= number_format((float)$b['tax'], 2) ?></td>
+                        <td class="text-end fw-semibold">৳<?= number_format($b['total_payable'], 2) ?></td>
+                        <td class="text-end">৳<?= number_format($b['total_paid'], 2) ?></td>
+                        <td class="text-end fw-semibold <?= $b['balance_due'] > 0 ? 'text-danger' : 'text-success' ?>">৳<?= number_format($b['balance_due'], 2) ?></td>
+                        <td><span class="badge <?= $is_paid ? 'payment-status-paid' : 'payment-status-due' ?>"><?= $is_paid ? 'Paid' : 'Due' ?></span></td>
                         <td class="text-end pe-3">
                             <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
                             <?php if ($b['status'] === 'reserved'): ?>
                                 <a href="hotel_reservations_checkin.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-brand"><i class="bi bi-box-arrow-in-right"></i> Check In</a>
                                 <a href="hotel_reservations_cancelled.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Cancel</a>
+                                <a href="hotel_receipt.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-eye"></i></a>
                             <?php elseif ($b['status'] === 'checked_in'): ?>
-                                <a href="hotel_front_desk.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-door-open"></i> Front Desk</a>
                                 <a href="hotel_extend_stay.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calendar-plus"></i> Extend</a>
                                 <a href="hotel_services.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-brand"><i class="bi bi-cup-hot"></i> Service</a>
                                 <a href="hotel_reservations_checkout.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-danger"><i class="bi bi-box-arrow-right"></i> Check Out</a>
-                                <a href="hotel_receipt.php?booking_id=<?= $bid ?>&type=checkin" class="btn btn-sm btn-outline-dark"><i class="bi bi-printer"></i></a>
+                                <a href="hotel_receipt.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i></a>
                             <?php elseif ($b['status'] === 'checked_out'): ?>
-                                <a href="hotel_receipt.php?booking_id=<?= $bid ?>&type=checkout" class="btn btn-sm btn-outline-dark"><i class="bi bi-printer"></i> Receipt</a>
+                                <a href="hotel_receipt.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-printer"></i> Receipt</a>
                             <?php elseif (in_array($b['status'], ['cancelled','no_show'])): ?>
-                                <span class="text-muted small fst-italic">No actions available</span>
+                                <a href="hotel_receipt.php?booking_id=<?= $bid ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> View</a>
                             <?php endif; ?>
                             </div>
                         </td>
                     </tr>
-                <?php endwhile; endif; ?>
+                <?php endforeach; endif; ?>
                 </tbody>
             </table>
         </div>
