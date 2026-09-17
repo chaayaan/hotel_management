@@ -78,11 +78,6 @@ require __DIR__ . '/navbar.php';
                         <th>Room</th>
                         <th>From → Until</th>
                         <th>Status</th>
-                        <th class="text-end">Room Total</th>
-                        <th class="text-end">Ext. Total</th>
-                        <th class="text-end">Service Total</th>
-                        <th class="text-end">Discount</th>
-                        <th class="text-end">Tax</th>
                         <th class="text-end">Total Payable</th>
                         <th class="text-end">Total Paid</th>
                         <th class="text-end">Balance Due</th>
@@ -92,27 +87,40 @@ require __DIR__ . '/navbar.php';
                 </thead>
                 <tbody>
                 <?php if (empty($bookings)): ?>
-                    <tr><td colspan="16" class="text-center text-muted py-4">No bookings found.</td></tr>
+                    <tr><td colspan="11" class="text-center text-muted py-4">No bookings found.</td></tr>
                 <?php else: foreach ($bookings as $b):
                     $bid = (int)$b['id'];
                     $is_paid = $b['balance_due'] <= 0.009;
+                    $is_cancelled = in_array($b['status'], ['cancelled', 'no_show']);
                 ?>
                     <tr>
                         <td class="fw-semibold"><?= e($b['reservation_no']) ?></td>
                         <td><?= e($b['guest_name']) ?></td>
                         <td><?= e($b['guest_phone']) ?></td>
                         <td><?= e($b['room_number']) ?></td>
-                        <td><?= e(date('d M Y', strtotime($b['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($b['reserved_until']))) ?></td>
+                        <td>
+                            <div><?= e(date('d M Y', strtotime($b['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($b['reserved_until']))) ?></div>
+                            <div class="text-muted" style="font-size:0.74rem;">
+                                <?= $b['checkin_at'] ? e(date('h:i a d/n/Y', strtotime($b['checkin_at']))) : '—' ?>
+                                →
+                                <?= $b['checkout_at'] ? e(date('h:i a d/n/Y', strtotime($b['checkout_at']))) : '—' ?>
+                            </div>
+                        </td>
                         <td><span class="badge <?= booking_status_badge($b['status']) ?>"><?= e(ucwords(str_replace('_',' ',$b['status']))) ?></span></td>
-                        <td class="text-end">৳<?= number_format((float)$b['room_charge_total'], 2) ?></td>
-                        <td class="text-end">৳<?= number_format($b['extension_total'], 2) ?></td>
-                        <td class="text-end">৳<?= number_format($b['service_total'], 2) ?></td>
-                        <td class="text-end">৳<?= number_format((float)$b['discount'], 2) ?></td>
-                        <td class="text-end">৳<?= number_format((float)$b['tax'], 2) ?></td>
+                        <?php if ($is_cancelled): ?>
+                        <td class="text-end text-muted" colspan="3">—</td>
+                        <td>
+                            <span class="badge bg-dark-subtle text-dark">Cancelled</span>
+                            <?php if (!empty($b['cancelled_at'])): ?>
+                            <div class="text-muted" style="font-size:0.74rem;">at <?= e(date('h:i a d/n/Y', strtotime($b['cancelled_at']))) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <?php else: ?>
                         <td class="text-end fw-semibold">৳<?= number_format($b['total_payable'], 2) ?></td>
                         <td class="text-end">৳<?= number_format($b['total_paid'], 2) ?></td>
                         <td class="text-end fw-semibold <?= $b['balance_due'] > 0 ? 'text-danger' : 'text-success' ?>">৳<?= number_format($b['balance_due'], 2) ?></td>
                         <td><span class="badge <?= $is_paid ? 'payment-status-paid' : 'payment-status-due' ?>"><?= $is_paid ? 'Paid' : 'Due' ?></span></td>
+                        <?php endif; ?>
                         <td class="text-end pe-3">
                             <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
                             <?php if ($b['status'] === 'reserved'): ?>
