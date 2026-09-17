@@ -47,8 +47,6 @@ require __DIR__ . '/navbar.php';
 ?>
 
 <style>
-    .pos-panel { border-radius: 14px; background: #fff; border: 1px solid #e8ebe9; padding: 20px; height: 100%; }
-    .pos-panel h6 { font-weight: 700; color: #1c3d2e; margin-bottom: 14px; }
     .info-line { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #eef0ef; font-size: 0.85rem; }
     .info-line .label { color: #8a938e; }
     .info-line .value { font-weight: 600; color: #1c3d2e; }
@@ -71,6 +69,9 @@ require __DIR__ . '/navbar.php';
         .print-a4 #printReceipt { max-width: 100%; padding: 10mm; }
     }
 
+    /* Minimal page margin for POS/thermal printing (default browser margin is much larger) */
+    @page { margin: 0.2cm; }
+
     .print-header { text-align: center; border-bottom: 2px dashed #dcdfdd; padding-bottom: 12px; margin-bottom: 14px; }
     .print-header h4 { margin: 0; font-weight: 800; color: #0f5132; }
     .print-header .muted { color: #666; font-size: 0.82rem; }
@@ -85,15 +86,14 @@ require __DIR__ . '/navbar.php';
     .print-paid-note { background: #d1f5e0; color: #0f5132; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 10px; text-align: center; font-weight: 700; }
 </style>
 
-<div class="mb-3 no-print">
-    <a href="hotel_front_desk.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Front Desk</a>
-</div>
-
 <div class="row g-3">
     <!-- LEFT: Service details -->
     <div class="col-lg-7">
-        <div class="pos-panel">
-            <h6><i class="bi bi-cup-hot me-1"></i>Service Details</h6>
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-cup-hot me-1"></i> Service Details
+            </div>
+            <div class="card-body">
 
             <div class="section-label">Guest & Room</div>
             <div class="info-line"><span class="label">Guest</span><span class="value"><?= e($booking['guest_name']) ?></span></div>
@@ -121,13 +121,17 @@ require __DIR__ . '/navbar.php';
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 
     <!-- RIGHT: Financial summary + actions -->
     <div class="col-lg-5">
-        <div class="pos-panel">
-            <h6><i class="bi bi-cash-stack me-1"></i>Financial Summary</h6>
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-cash-stack me-1"></i> Financial Summary
+            </div>
+            <div class="card-body">
 
             <div class="total-box">
                 <div class="d-flex justify-content-between small text-muted">
@@ -161,6 +165,7 @@ require __DIR__ . '/navbar.php';
                 <a href="hotel_services.php?booking_id=<?= (int)$service['booking_id'] ?>" class="btn btn-outline-brand btn-sm"><i class="bi bi-cup-hot me-1"></i>Add Another Service</a>
                 <button class="btn btn-brand btn-sm" onclick="printReceipt('pos')"><i class="bi bi-printer me-1"></i>Print POS</button>
                 <button class="btn btn-outline-brand btn-sm" onclick="printReceipt('a4')"><i class="bi bi-file-earmark-text me-1"></i>Print A4</button>
+            </div>
             </div>
         </div>
     </div>

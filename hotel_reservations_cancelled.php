@@ -70,8 +70,6 @@ require __DIR__ . '/navbar.php';
 ?>
 
 <style>
-    .pos-panel { border-radius: 14px; background: #fff; border: 1px solid #e8ebe9; padding: 20px; height: 100%; }
-    .pos-panel h6 { font-weight: 700; color: #1c3d2e; margin-bottom: 14px; }
     .info-line { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed #eef0ef; font-size: 0.88rem; }
     .info-line .label { color: #8a938e; }
     .info-line .value { font-weight: 600; color: #1c3d2e; }
@@ -83,15 +81,14 @@ require __DIR__ . '/navbar.php';
     </div>
 <?php endif; ?>
 
-<div class="mb-3">
-    <a href="hotel_front_desk.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Front Desk</a>
-</div>
-
 <div class="row g-3">
     <!-- LEFT: Booking info -->
     <div class="col-lg-6">
-        <div class="pos-panel">
-            <h6><i class="bi bi-info-circle me-1"></i>Booking Information</h6>
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle me-1"></i> Booking Information
+            </div>
+            <div class="card-body">
             <div class="info-line"><span class="label">Reservation No</span><span class="value"><?= e($booking['reservation_no']) ?></span></div>
             <div class="info-line"><span class="label">Guest</span><span class="value"><?= e($booking['guest_name']) ?></span></div>
             <div class="info-line"><span class="label">Phone</span><span class="value"><?= e($booking['guest_phone']) ?></span></div>
@@ -101,6 +98,7 @@ require __DIR__ . '/navbar.php';
             <div class="info-line"><span class="label">Nights</span><span class="value"><?= (int)$booking['reserved_nights'] ?></span></div>
             <div class="info-line"><span class="label">Room Charge Total</span><span class="value">৳<?= number_format((float)$booking['room_charge_total'], 2) ?></span></div>
             <div class="info-line"><span class="label">Status</span><span class="value"><span class="badge <?= booking_status_badge($booking['status']) ?>"><?= e(ucwords($booking['status'])) ?></span></span></div>
+            </div>
         </div>
     </div>
 
@@ -111,8 +109,11 @@ require __DIR__ . '/navbar.php';
             <input type="hidden" name="action" value="do_cancel">
             <input type="hidden" name="booking_id" value="<?= $booking_id ?>">
 
-            <div class="pos-panel">
-                <h6><i class="bi bi-x-circle me-1"></i>Cancellation</h6>
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-x-circle me-1"></i> Cancellation
+                </div>
+                <div class="card-body">
 
                 <div class="alert alert-warning small">
                     <i class="bi bi-exclamation-triangle me-1"></i>
@@ -128,6 +129,7 @@ require __DIR__ . '/navbar.php';
                 <button type="submit" class="btn btn-danger w-100 py-2 fw-semibold" onclick="return confirm('Are you sure you want to cancel this reservation?');">
                     <i class="bi bi-x-circle me-1"></i> Cancel Reservation
                 </button>
+                </div>
             </div>
         </form>
     </div>

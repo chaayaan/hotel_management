@@ -120,8 +120,6 @@ require __DIR__ . '/navbar.php';
 ?>
 
 <style>
-    .pos-panel { border-radius: 14px; background: #fff; border: 1px solid #e8ebe9; padding: 20px; height: 100%; }
-    .pos-panel h6 { font-weight: 700; color: #1c3d2e; margin-bottom: 14px; }
     .info-line { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed #eef0ef; font-size: 0.88rem; }
     .info-line .label { color: #8a938e; }
     .info-line .value { font-weight: 600; color: #1c3d2e; }
@@ -140,14 +138,13 @@ require __DIR__ . '/navbar.php';
     </div>
 <?php endif; ?>
 
-<div class="mb-3">
-    <a href="hotel_front_desk.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Front Desk</a>
-</div>
-
 <div class="row g-3">
     <div class="col-lg-5">
-        <div class="pos-panel">
-            <h6><i class="bi bi-info-circle me-1"></i>Booking Information</h6>
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle me-1"></i> Booking Information
+            </div>
+            <div class="card-body">
             <div class="info-line"><span class="label">Reservation No</span><span class="value"><?= e($booking['reservation_no']) ?></span></div>
             <div class="info-line"><span class="label">Guest</span><span class="value"><?= e($booking['guest_name']) ?></span></div>
             <div class="info-line"><span class="label">Room</span><span class="value"><?= e($booking['room_number']) ?> (<?= e($booking['room_type_name']) ?>)</span></div>
@@ -171,6 +168,7 @@ require __DIR__ . '/navbar.php';
                 </table>
                 <a href="hotel_services_history.php?booking_id=<?= $booking_id ?>" class="small">View full service history →</a>
             <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -181,8 +179,11 @@ require __DIR__ . '/navbar.php';
             <input type="hidden" name="booking_id" value="<?= $booking_id ?>">
             <input type="hidden" name="service_type" id="service_type" value="food">
 
-            <div class="pos-panel">
-                <h6><i class="bi bi-cup-hot me-1"></i>Add Service</h6>
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-cup-hot me-1"></i> Add Service
+                </div>
+                <div class="card-body">
 
                 <label class="form-label small fw-semibold">Service Type</label>
                 <div class="row g-2 mb-3">
@@ -249,6 +250,7 @@ require __DIR__ . '/navbar.php';
                 <button type="submit" class="btn btn-brand w-100 mt-3 py-2 fw-semibold" id="submitBtn">
                     <i class="bi bi-check-circle me-1"></i> Add Service
                 </button>
+                </div>
             </div>
         </form>
     </div>

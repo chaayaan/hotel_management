@@ -209,7 +209,7 @@ function nav_active($key, $active) {
         $hotel_pages       = ['front_desk', 'reservations', 'booking_list', 'services_history'];
         $restaurant_pages  = ['restaurant_front_desk', 'restaurant_order_list', 'restaurant_tables_status'];
         $expenses_pages    = ['expense_add', 'expense_history'];
-        $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories'];
+        $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories', 'settings'];
 
         $group_open = function($pages) use ($active_menu) {
             return in_array($active_menu, $pages) ? 'show' : '';
@@ -307,6 +307,9 @@ function nav_active($key, $active) {
         </a>
         <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
             <i class="bi bi-people"></i> Users
+        </a>
+        <a href="hotel_settings.php" class="nav-link <?= nav_active('settings', $active_menu) ?>">
+            <i class="bi bi-gear"></i> Resort Settings
         </a>
     </div>
     <?php endif; ?>

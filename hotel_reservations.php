@@ -134,15 +134,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 }
 
 // ---------- Fetch existing reservations (upper section) ----------
-$filter_status = $_GET['status'] ?? 'reserved';
+// This panel only ever shows bookings that are still in "reserved" status
+// (not checked in, checked out, cancelled, or no-show).
 $sql = "SELECT b.*, g.full_name AS guest_name, g.phone AS guest_phone, r.room_number
         FROM hotel_bookings b
         JOIN guests g ON g.id = b.guest_id
         JOIN rooms r ON r.id = b.room_id
-        WHERE 1=1";
-if ($filter_status !== 'all' && in_array($filter_status, ['reserved','checked_in','checked_out','cancelled','no_show'])) {
-    $sql .= " AND b.status = '" . mysqli_real_escape_string($conn, $filter_status) . "'";
-}
+        WHERE b.status = 'reserved'";
 $sql .= " ORDER BY b.created_at DESC LIMIT 50";
 $reservations = mysqli_query($conn, $sql);
 
@@ -197,11 +195,7 @@ require __DIR__ . '/navbar.php';
         <div class="card h-100">
             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
                 <span><i class="bi bi-calendar-week me-1"></i> Existing Reservations</span>
-                <select name="status" form="statusFilterForm" class="form-select form-select-sm" style="width:150px;" onchange="document.getElementById('statusFilterForm').submit()">
-                    <?php foreach (['reserved'=>'Reserved','checked_in'=>'Checked In','checked_out'=>'Checked Out','cancelled'=>'Cancelled','all'=>'All'] as $val=>$label): ?>
-                        <option value="<?= $val ?>" <?= $filter_status === $val ? 'selected' : '' ?>><?= $label ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <span class="badge bg-warning-subtle text-warning-emphasis">Reserved only</span>
             </div>
             <div class="card-body p-0">
                 <div class="reservation-list-scroll">
@@ -318,11 +312,11 @@ require __DIR__ . '/navbar.php';
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-semibold">Adults</label>
-                    <input type="number" name="adults" id="adults" class="form-control" value="1" min="1">
+                    <input type="number" name="adults" id="adults" class="form-control" value="1" min="1" onchange="updateSummary()">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-semibold">Children</label>
-                    <input type="number" name="children" id="children" class="form-control" value="0" min="0">
+                    <input type="number" name="children" id="children" class="form-control" value="0" min="0" onchange="updateSummary()">
                 </div>
 
                 <div class="col-md-6">
@@ -340,10 +334,11 @@ require __DIR__ . '/navbar.php';
                 </div>
             </div>
 
-            <div id="roomInfoBox" class="mt-3">
-                <div class="info-line"><span class="label">Room</span><span class="value" id="ri_room">—</span></div>
-                <div class="info-line"><span class="label">Type</span><span class="value" id="ri_type">—</span></div>
-                <div class="info-line"><span class="label">Price / Night</span><span class="value" id="ri_price">—</span></div>
+            <div id="summaryBox" class="mt-3">
+                <div class="info-line"><span class="label">Room</span><span class="value" id="sum_room">—</span></div>
+                <div class="info-line"><span class="label">Guest</span><span class="value" id="sum_guest">—</span></div>
+                <div class="info-line"><span class="label">Adult/Child</span><span class="value" id="sum_occupancy">—</span></div>
+                <div class="info-line"><span class="label">Reserved For</span><span class="value" id="sum_dates">—</span></div>
             </div>
 
             <div id="availabilityNote" class="mt-2"></div>
@@ -352,13 +347,13 @@ require __DIR__ . '/navbar.php';
 
             <div class="total-box">
                 <div class="d-flex justify-content-between small text-muted">
-                    <span>Nights</span><span id="calc_nights">0</span>
+                    <span>Room Cost / Night</span><span id="calc_price">৳0.00</span>
                 </div>
                 <div class="d-flex justify-content-between small text-muted">
-                    <span>Price / Night</span><span id="calc_price">৳0.00</span>
+                    <span>Nights</span><span id="calc_nights">0</span>
                 </div>
                 <div class="d-flex justify-content-between mt-2">
-                    <span class="fw-semibold">Total Room Charge</span>
+                    <span class="fw-semibold">Total</span>
                     <span class="grand" id="calc_total">৳0.00</span>
                 </div>
             </div>
@@ -371,7 +366,7 @@ require __DIR__ . '/navbar.php';
 </div>
 </form>
 
-<form method="GET" id="statusFilterForm"></form>
+
 
 <script>
 let selectedGuestId = null;
@@ -428,6 +423,7 @@ function selectGuest(g) {
     guestInput.value = '';
     resultsBox.style.display = 'none';
     validateForm();
+    updateSummary();
 }
 
 function clearGuestSelection() {
@@ -438,6 +434,7 @@ function clearGuestSelection() {
     guestInput.value = '';
     guestInput.focus();
     validateForm();
+    updateSummary();
 }
 
 function cancelNewGuest() {
@@ -465,16 +462,13 @@ function onRoomChange() {
     const sel = document.getElementById('room_id');
     const opt = sel.options[sel.selectedIndex];
     if (opt && opt.value) {
-        document.getElementById('ri_room').innerText = opt.dataset.number;
-        document.getElementById('ri_type').innerText = opt.dataset.type;
-        document.getElementById('ri_price').innerText = '৳' + parseFloat(opt.dataset.price).toFixed(2);
+        document.getElementById('sum_room').innerText = opt.dataset.number + ' / ' + opt.dataset.type + ' / ৳' + parseFloat(opt.dataset.price).toFixed(0);
         document.getElementById('price_per_day').value = opt.dataset.price;
         document.getElementById('calc_price').innerText = '৳' + parseFloat(opt.dataset.price).toFixed(2);
     } else {
-        document.getElementById('ri_room').innerText = '—';
-        document.getElementById('ri_type').innerText = '—';
-        document.getElementById('ri_price').innerText = '—';
+        document.getElementById('sum_room').innerText = '—';
         document.getElementById('price_per_day').value = 0;
+        document.getElementById('calc_price').innerText = '৳0.00';
     }
     onDatesChange();
 }
@@ -482,6 +476,29 @@ function onRoomChange() {
 function onDatesChange() {
     calcTotal();
     checkAvailability();
+    updateSummary();
+}
+
+function formatDisplayDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function updateSummary() {
+    const guestName = document.getElementById('sg_name') ? document.getElementById('sg_name').innerText : '';
+    document.getElementById('sum_guest').innerText = (selectedGuestId && guestName) ? guestName
+        : (document.getElementById('new_guest_name') && document.getElementById('new_guest_name').value)
+            ? document.getElementById('new_guest_name').value : '—';
+
+    const adults = document.getElementById('adults').value || 0;
+    const children = document.getElementById('children').value || 0;
+    document.getElementById('sum_occupancy').innerText = adults + ' Adult' + (adults == 1 ? '' : 's') + ' / ' + children + ' Child' + (children == 1 ? '' : 'ren');
+
+    const from = document.getElementById('reserved_from').value;
+    const until = document.getElementById('reserved_until').value;
+    document.getElementById('sum_dates').innerText = (from && until)
+        ? (formatDisplayDate(from) + ' to ' + formatDisplayDate(until)) : '—';
 }
 
 function calcTotal() {
@@ -541,8 +558,8 @@ function validateForm() {
     btn.disabled = !(hasGuest && roomId && from && until && isRoomAvailable === true);
 }
 
-document.getElementById('adults').addEventListener('input', validateForm);
-document.getElementById('new_guest_name')?.addEventListener('input', validateForm);
+document.getElementById('adults').addEventListener('input', () => { validateForm(); updateSummary(); });
+document.getElementById('new_guest_name')?.addEventListener('input', () => { validateForm(); updateSummary(); });
 document.getElementById('new_guest_phone')?.addEventListener('input', validateForm);
 
 window.addEventListener('DOMContentLoaded', () => {

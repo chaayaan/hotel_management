@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
-require_once __DIR__ . '/hotel_helpers.php';
+require_once __DIR__ . '/hotel_functions.php';
 require_role(['admin', 'general_manager']);
 
 $fields = [

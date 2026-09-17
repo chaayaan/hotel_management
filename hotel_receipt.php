@@ -85,6 +85,9 @@ require __DIR__ . '/navbar.php';
         .print-a4 #printReceipt { max-width: 100%; padding: 10mm; }
     }
 
+    /* Minimal page margin for POS/thermal printing (default browser margin is much larger) */
+    @page { margin: 0.2cm; }
+
     .print-header { text-align: center; border-bottom: 2px dashed #dcdfdd; padding-bottom: 12px; margin-bottom: 14px; }
     .print-header h4 { margin: 0; font-weight: 800; color: #0f5132; }
     .print-header .muted { color: #666; font-size: 0.82rem; }
@@ -96,7 +99,7 @@ require __DIR__ . '/navbar.php';
     .print-totals { margin-top: 12px; border-top: 2px dashed #dcdfdd; padding-top: 10px; }
     .print-totals .line { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 3px 0; }
     .print-totals .grand { font-size: 1.2rem; font-weight: 800; border-top: 1px solid #ccc; margin-top: 6px; padding-top: 8px; }
-    .print-wifi { display: flex; align-items: center; gap: 14px; justify-content: center; margin-top: 18px; padding-top: 14px; border-top: 2px dashed #dcdfdd; }
+    .print-wifi { display: flex; flex-direction: column; align-items: center; gap: 8px; justify-content: center; text-align: center; margin-top: 18px; padding-top: 14px; border-top: 2px dashed #dcdfdd; font-size: 0.8rem; }
 </style>
 
 <div class="mb-3 no-print">
@@ -338,24 +341,23 @@ require __DIR__ . '/navbar.php';
 
     <?php if ($wifi_qr_string): ?>
     <div class="print-wifi">
-        <canvas id="printWifiQr"></canvas>
-        <div style="font-size:0.8rem;">
-            <div>Wi-Fi: <strong><?= e($wifi_name) ?></strong></div>
-            <div>Password: <strong><?= e($wifi_password) ?></strong></div>
-            <div class="text-muted">Scan to join Wi-Fi</div>
-        </div>
+        <img id="printWifiQr" alt="Wi-Fi QR Code" width="110" height="110">
+        <div class="text-muted">Scan to connect to network</div>
     </div>
     <?php endif; ?>
 
     <div class="text-center text-muted mt-3" style="font-size:0.75rem;">Thank you for staying with us!</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script>
 <?php if ($wifi_qr_string): ?>
-if (window.QRCode) {
-    QRCode.toCanvas(document.getElementById('printWifiQr'), <?= json_encode($wifi_qr_string) ?>, { width: 100, margin: 1 });
-}
+(function() {
+    var qrImg = document.getElementById('printWifiQr');
+    var qrData = <?= json_encode($wifi_qr_string) ?>;
+    // Using a QR image API (no external JS lib / canvas dependency, so it
+    // reliably renders even inside a display:none receipt block until print time).
+    qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=' + encodeURIComponent(qrData);
+})();
 <?php endif; ?>
 
 function printReceipt(mode) {

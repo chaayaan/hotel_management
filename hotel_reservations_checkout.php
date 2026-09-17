@@ -135,8 +135,6 @@ require __DIR__ . '/navbar.php';
 ?>
 
 <style>
-    .pos-panel { border-radius: 14px; background: #fff; border: 1px solid #e8ebe9; padding: 20px; height: 100%; }
-    .pos-panel h6 { font-weight: 700; color: #1c3d2e; margin-bottom: 14px; }
     .info-line { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #eef0ef; font-size: 0.85rem; }
     .info-line .label { color: #8a938e; }
     .info-line .value { font-weight: 600; color: #1c3d2e; }
@@ -152,15 +150,14 @@ require __DIR__ . '/navbar.php';
     </div>
 <?php endif; ?>
 
-<div class="mb-3">
-    <a href="hotel_front_desk.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Front Desk</a>
-</div>
-
 <div class="row g-3">
     <!-- LEFT: Complete booking info -->
     <div class="col-lg-6">
-        <div class="pos-panel">
-            <h6><i class="bi bi-clipboard-data me-1"></i>Complete Booking Information</h6>
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-clipboard-data me-1"></i> Complete Booking Information
+            </div>
+            <div class="card-body">
 
             <div class="section-label">Guest & Room</div>
             <div class="info-line"><span class="label">Reservation No</span><span class="value"><?= e($booking['reservation_no']) ?></span></div>
@@ -233,6 +230,7 @@ require __DIR__ . '/navbar.php';
                     <tfoot><tr class="fw-semibold"><td colspan="2">Total Paid</td><td colspan="2">৳<?= number_format($payments_made, 2) ?></td></tr></tfoot>
                 </table>
             <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -243,8 +241,11 @@ require __DIR__ . '/navbar.php';
             <input type="hidden" name="action" value="do_checkout">
             <input type="hidden" name="booking_id" value="<?= $booking_id ?>">
 
-            <div class="pos-panel">
-                <h6><i class="bi bi-box-arrow-right me-1"></i>Checkout Process</h6>
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-box-arrow-right me-1"></i> Checkout Process
+                </div>
+                <div class="card-body">
 
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -308,6 +309,7 @@ require __DIR__ . '/navbar.php';
                 <button type="submit" class="btn btn-danger w-100 mt-3 py-2 fw-semibold" id="checkoutBtn">
                     <i class="bi bi-box-arrow-right me-1"></i> Check Out
                 </button>
+                </div>
             </div>
         </form>
     </div>
