@@ -169,6 +169,12 @@ require __DIR__ . '/navbar.php';
     .guest-result-item:hover { background: #f4f6f5; }
     .total-box { background: #f4f6f5; border-radius: 10px; padding: 14px 16px; margin-top: 10px; }
     .total-box .grand { font-size: 1.4rem; font-weight: 700; color: #0f5132; }
+
+    .reservation-list-scroll { max-height: 720px; overflow-y: auto; }
+    .reservation-row { padding: 14px 16px; border-bottom: 1px solid #eef0ef; }
+    .reservation-row:hover { background: #fafbfa; }
+    .reservation-row:last-child { border-bottom: none; }
+    .reservation-row .min-w-0 { min-width: 0; }
 </style>
 
 <?php if (!empty($errors)): ?>
@@ -179,71 +185,6 @@ require __DIR__ . '/navbar.php';
     </div>
 <?php endif; ?>
 
-<!-- Upper Section: Existing Reservations -->
-<div class="card mb-4">
-    <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
-        <span><i class="bi bi-calendar-week me-1"></i> Existing Reservations</span>
-        <form method="GET" class="d-flex gap-2">
-            <select name="status" class="form-select form-select-sm" style="width:160px;" onchange="this.form.submit()">
-                <?php foreach (['reserved'=>'Reserved','checked_in'=>'Checked In','checked_out'=>'Checked Out','cancelled'=>'Cancelled','all'=>'All'] as $val=>$label): ?>
-                    <option value="<?= $val ?>" <?= $filter_status === $val ? 'selected' : '' ?>><?= $label ?></option>
-                <?php endforeach; ?>
-            </select>
-        </form>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th>Reservation #</th>
-                        <th>Guest</th>
-                        <th>Room</th>
-                        <th>From → Until</th>
-                        <th>Nights</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th class="text-end pe-3">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if (mysqli_num_rows($reservations) === 0): ?>
-                    <tr><td colspan="8" class="text-center text-muted py-4">No reservations found.</td></tr>
-                <?php else: while ($row = mysqli_fetch_assoc($reservations)):
-                    $rbid = (int)$row['id'];
-                ?>
-                    <tr>
-                        <td class="fw-semibold"><?= e($row['reservation_no']) ?></td>
-                        <td><?= e($row['guest_name']) ?><div class="text-muted small"><?= e($row['guest_phone']) ?></div></td>
-                        <td><?= e($row['room_number']) ?></td>
-                        <td class="small"><?= e(date('d M Y', strtotime($row['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($row['reserved_until']))) ?></td>
-                        <td><?= (int)$row['reserved_nights'] ?></td>
-                        <td>৳<?= number_format((float)$row['total_amount'], 2) ?></td>
-                        <td><span class="badge <?= booking_status_badge($row['status']) ?>"><?= e(ucwords(str_replace('_',' ',$row['status']))) ?></span></td>
-                        <td class="text-end pe-3">
-                            <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
-                            <?php if ($row['status'] === 'reserved'): ?>
-                                <a href="hotel_reservations_checkin.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-brand"><i class="bi bi-box-arrow-in-right"></i> Check In</a>
-                                <a href="hotel_reservations_cancelled.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Cancel</a>
-                            <?php elseif ($row['status'] === 'checked_in'): ?>
-                                <a href="hotel_reservations_checkout.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-danger"><i class="bi bi-box-arrow-right"></i> Check Out</a>
-                                <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i> Receipt</a>
-                            <?php elseif ($row['status'] === 'checked_out'): ?>
-                                <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i> Receipt</a>
-                            <?php else: ?>
-                                <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> View</a>
-                            <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                <?php endwhile; endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- Main Section: POS-style New Reservation -->
 <form method="POST" id="reservationForm">
 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
 <input type="hidden" name="action" value="create_reservation">
@@ -251,33 +192,95 @@ require __DIR__ . '/navbar.php';
 <input type="hidden" name="guest_mode" id="guest_mode" value="existing">
 
 <div class="row g-3">
-    <!-- LEFT: Selected info -->
+    <!-- LEFT: Existing Reservations -->
     <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                <span><i class="bi bi-calendar-week me-1"></i> Existing Reservations</span>
+                <select name="status" form="statusFilterForm" class="form-select form-select-sm" style="width:150px;" onchange="document.getElementById('statusFilterForm').submit()">
+                    <?php foreach (['reserved'=>'Reserved','checked_in'=>'Checked In','checked_out'=>'Checked Out','cancelled'=>'Cancelled','all'=>'All'] as $val=>$label): ?>
+                        <option value="<?= $val ?>" <?= $filter_status === $val ? 'selected' : '' ?>><?= $label ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="card-body p-0">
+                <div class="reservation-list-scroll">
+                <?php if (mysqli_num_rows($reservations) === 0): ?>
+                    <div class="text-center text-muted py-5">No reservations found.</div>
+                <?php else: while ($row = mysqli_fetch_assoc($reservations)):
+                    $rbid = (int)$row['id'];
+                ?>
+                    <div class="reservation-row">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="min-w-0">
+                                <div class="fw-semibold small text-truncate"><?= e($row['reservation_no']) ?></div>
+                                <div class="text-muted small text-truncate"><?= e($row['guest_name']) ?> · <?= e($row['guest_phone']) ?></div>
+                            </div>
+                            <span class="badge <?= booking_status_badge($row['status']) ?> flex-shrink-0"><?= e(ucwords(str_replace('_',' ',$row['status']))) ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 small">
+                            <span class="text-muted">Room <?= e($row['room_number']) ?> · <?= (int)$row['reserved_nights'] ?>N</span>
+                            <span class="fw-semibold">৳<?= number_format((float)$row['total_amount'], 2) ?></span>
+                        </div>
+                        <div class="text-muted small mt-1"><?= e(date('d M Y', strtotime($row['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($row['reserved_until']))) ?></div>
+                        <div class="d-flex gap-1 flex-wrap mt-2">
+                        <?php if ($row['status'] === 'reserved'): ?>
+                            <a href="hotel_reservations_checkin.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-brand"><i class="bi bi-box-arrow-in-right"></i> Check In</a>
+                            <a href="hotel_reservations_cancelled.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Cancel</a>
+                        <?php elseif ($row['status'] === 'checked_in'): ?>
+                            <a href="hotel_reservations_checkout.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-danger"><i class="bi bi-box-arrow-right"></i> Check Out</a>
+                            <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i> Receipt</a>
+                        <?php elseif ($row['status'] === 'checked_out'): ?>
+                            <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-receipt"></i> Receipt</a>
+                        <?php else: ?>
+                            <a href="hotel_receipt.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> View</a>
+                        <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endwhile; endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Guest selection + New Reservation form, combined -->
+    <div class="col-lg-7">
         <div class="pos-panel">
-            <h6><i class="bi bi-info-circle me-1"></i>Selected Details</h6>
+            <h6><i class="bi bi-calendar-plus me-1"></i>New Reservation</h6>
 
             <div class="mb-3">
                 <label class="form-label small fw-semibold">Guest</label>
                 <div class="input-group input-group-sm mb-2">
                     <input type="text" id="guestSearchInput" class="form-control" placeholder="Search guest by name or phone...">
-                    <button type="button" class="btn btn-outline-secondary" id="newGuestBtn">+ New</button>
+                    <button type="button" class="btn btn-outline-brand" id="newGuestBtn">+ New Guest</button>
                 </div>
-                <div id="guestSearchResults" class="border rounded" style="display:none; max-height:180px; overflow-y:auto;"></div>
+                <div id="guestSearchResults" class="border rounded" style="display:none; max-height:180px; overflow-y:auto; position:relative; z-index:5; background:#fff;"></div>
 
-                <div id="selectedGuestBox" class="d-none">
+                <div id="selectedGuestBox" class="d-none border rounded p-2 mt-2" style="background:#f4f6f5;">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="small text-muted fw-semibold mb-1"><i class="bi bi-check-circle-fill text-success me-1"></i>Selected Guest</div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="clearGuestSelection()" title="Remove selected guest">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
                     <div class="info-line"><span class="label">Name</span><span class="value" id="sg_name"></span></div>
                     <div class="info-line"><span class="label">Phone</span><span class="value" id="sg_phone"></span></div>
-                    <div class="info-line"><span class="label">Email</span><span class="value" id="sg_email"></span></div>
-                    <button type="button" class="btn btn-sm btn-link p-0 mt-1" onclick="clearGuestSelection()">Change guest</button>
+                    <div class="info-line" style="border-bottom:none;"><span class="label">Email</span><span class="value" id="sg_email"></span></div>
                 </div>
 
                 <div id="newGuestBox" class="d-none border rounded p-2 mt-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="small text-muted fw-semibold"><i class="bi bi-person-plus me-1"></i>New Guest Details</div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="cancelNewGuest()" title="Cancel">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
                     <div class="row g-2">
                         <div class="col-12">
-                            <input type="text" name="new_guest_name" class="form-control form-control-sm" placeholder="Full Name *">
+                            <input type="text" name="new_guest_name" id="new_guest_name" class="form-control form-control-sm" placeholder="Full Name *">
                         </div>
                         <div class="col-6">
-                            <input type="text" name="new_guest_phone" class="form-control form-control-sm" placeholder="Phone *">
+                            <input type="text" name="new_guest_phone" id="new_guest_phone" class="form-control form-control-sm" placeholder="Phone *">
                         </div>
                         <div class="col-6">
                             <input type="email" name="new_guest_email" class="form-control form-control-sm" placeholder="Email">
@@ -296,21 +299,6 @@ require __DIR__ . '/navbar.php';
             </div>
 
             <hr>
-
-            <div id="roomInfoBox">
-                <div class="info-line"><span class="label">Room</span><span class="value" id="ri_room">—</span></div>
-                <div class="info-line"><span class="label">Type</span><span class="value" id="ri_type">—</span></div>
-                <div class="info-line"><span class="label">Price / Night</span><span class="value" id="ri_price">—</span></div>
-            </div>
-
-            <div id="availabilityNote" class="mt-3"></div>
-        </div>
-    </div>
-
-    <!-- RIGHT: Reservation form -->
-    <div class="col-lg-7">
-        <div class="pos-panel">
-            <h6><i class="bi bi-calendar-plus me-1"></i>New Reservation</h6>
 
             <div class="row g-3">
                 <div class="col-md-6">
@@ -352,6 +340,14 @@ require __DIR__ . '/navbar.php';
                 </div>
             </div>
 
+            <div id="roomInfoBox" class="mt-3">
+                <div class="info-line"><span class="label">Room</span><span class="value" id="ri_room">—</span></div>
+                <div class="info-line"><span class="label">Type</span><span class="value" id="ri_type">—</span></div>
+                <div class="info-line"><span class="label">Price / Night</span><span class="value" id="ri_price">—</span></div>
+            </div>
+
+            <div id="availabilityNote" class="mt-2"></div>
+
             <input type="hidden" name="price_per_day" id="price_per_day" value="0">
 
             <div class="total-box">
@@ -375,6 +371,8 @@ require __DIR__ . '/navbar.php';
 </div>
 </form>
 
+<form method="GET" id="statusFilterForm"></form>
+
 <script>
 let selectedGuestId = null;
 let isRoomAvailable = null;
@@ -386,6 +384,13 @@ let searchTimeout;
 guestInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     const q = guestInput.value.trim();
+
+    // Typing a search means they intend to pick an existing guest — close the new-guest panel if open.
+    if (q.length > 0 && !document.getElementById('newGuestBox').classList.contains('d-none')) {
+        document.getElementById('newGuestBox').classList.add('d-none');
+        document.getElementById('guest_mode').value = 'existing';
+    }
+
     if (q.length < 2) { resultsBox.style.display = 'none'; return; }
     searchTimeout = setTimeout(() => {
         fetch('hotel_reservations.php?ajax=guest_search&q=' + encodeURIComponent(q))
@@ -416,29 +421,43 @@ function selectGuest(g) {
     document.getElementById('sg_phone').innerText = g.phone;
     document.getElementById('sg_email').innerText = g.email || '—';
     document.getElementById('selectedGuestBox').classList.remove('d-none');
+
+    // Closing the "new guest" panel (if it was open) since an existing guest was just picked,
+    // but keeping the search input and results visible so another guest can be picked right away.
     document.getElementById('newGuestBox').classList.add('d-none');
+    guestInput.value = '';
     resultsBox.style.display = 'none';
-    guestInput.style.display = 'none';
-    document.getElementById('newGuestBtn').style.display = 'none';
     validateForm();
 }
 
 function clearGuestSelection() {
     selectedGuestId = null;
     document.getElementById('guest_id').value = '';
+    document.getElementById('guest_mode').value = 'existing';
     document.getElementById('selectedGuestBox').classList.add('d-none');
     guestInput.value = '';
-    guestInput.style.display = 'block';
-    document.getElementById('newGuestBtn').style.display = 'inline-block';
+    guestInput.focus();
+    validateForm();
+}
+
+function cancelNewGuest() {
+    document.getElementById('guest_mode').value = 'existing';
+    document.getElementById('newGuestBox').classList.add('d-none');
+    document.querySelectorAll('#newGuestBox input').forEach(el => el.value = '');
     validateForm();
 }
 
 document.getElementById('newGuestBtn').addEventListener('click', () => {
     document.getElementById('guest_mode').value = 'new';
     document.getElementById('newGuestBox').classList.remove('d-none');
-    guestInput.style.display = 'none';
-    document.getElementById('newGuestBtn').style.display = 'none';
+
+    // A reservation is for one guest, so picking "new guest" clears any existing selection —
+    // but the search box itself stays visible/usable in case they change their mind.
+    selectedGuestId = null;
+    document.getElementById('guest_id').value = '';
+    document.getElementById('selectedGuestBox').classList.add('d-none');
     resultsBox.style.display = 'none';
+    document.getElementById('new_guest_name').focus();
     validateForm();
 });
 
@@ -506,7 +525,15 @@ function checkAvailability() {
 }
 
 function validateForm() {
-    const hasGuest = document.getElementById('guest_id').value || document.getElementById('guest_mode').value === 'new';
+    const guestMode = document.getElementById('guest_mode').value;
+    let hasGuest = false;
+    if (guestMode === 'new') {
+        const name = document.getElementById('new_guest_name')?.value.trim();
+        const phone = document.getElementById('new_guest_phone')?.value.trim();
+        hasGuest = !!(name && phone);
+    } else {
+        hasGuest = !!document.getElementById('guest_id').value;
+    }
     const roomId = document.getElementById('room_id').value;
     const from = document.getElementById('reserved_from').value;
     const until = document.getElementById('reserved_until').value;
@@ -515,7 +542,8 @@ function validateForm() {
 }
 
 document.getElementById('adults').addEventListener('input', validateForm);
-document.querySelector('[name="new_guest_name"]')?.addEventListener('input', validateForm);
+document.getElementById('new_guest_name')?.addEventListener('input', validateForm);
+document.getElementById('new_guest_phone')?.addEventListener('input', validateForm);
 
 window.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('room_id').value) {
