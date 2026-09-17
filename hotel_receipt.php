@@ -102,10 +102,6 @@ require __DIR__ . '/navbar.php';
     .print-wifi { display: flex; flex-direction: column; align-items: center; gap: 8px; justify-content: center; text-align: center; margin-top: 18px; padding-top: 14px; border-top: 2px dashed #dcdfdd; font-size: 0.8rem; }
 </style>
 
-<div class="mb-3 no-print">
-    <a href="hotel_booking_list.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Booking List</a>
-</div>
-
 <div class="row g-3">
     <div class="col-lg-7">
         <div class="pos-panel">
