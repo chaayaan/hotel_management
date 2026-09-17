@@ -195,6 +195,45 @@ $active_menu = 'restaurant_food_items';
 require __DIR__ . '/navbar.php';
 ?>
 
+<style>
+    .food-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+    .food-card { background: #fff; border: 1px solid #eef0ef; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+    .food-card-inactive { opacity: 0.6; }
+    .food-card-media { position: relative; }
+    .food-card .food-img { width: 100%; height: 110px; object-fit: cover; background: #f0f2f1; display: block; }
+    .food-card .food-img-placeholder {
+        width: 100%; height: 110px; background: #f0f2f1; display: flex; align-items: center; justify-content: center; color: #b8c0bc; font-size: 1.8rem;
+    }
+    .inactive-tag {
+        position: absolute; top: 8px; left: 8px;
+        background: rgba(108,117,125,0.9); color: #fff;
+        font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+        padding: 2px 8px; border-radius: 999px;
+    }
+    .delete-corner-btn {
+        position: absolute; top: 6px; right: 6px;
+        width: 28px; height: 28px; border-radius: 8px; border: none;
+        background: rgba(255,255,255,0.92); color: #dc3545;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.85rem;
+    }
+    .delete-corner-btn:hover { background: #dc3545; color: #fff; }
+    .food-card .food-body { padding: 10px 12px 12px; display: flex; flex-direction: column; flex: 1 1 auto; }
+    .food-card .food-name { font-weight: 600; font-size: 0.87rem; color: #1c3d2e; line-height: 1.25; min-height: 20px; }
+    .food-card .food-meta-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin: 4px 0 8px; }
+    .food-card .food-price { color: #0f5132; font-weight: 700; font-size: 0.85rem; }
+    .food-card .food-size { color: #8a938e; font-size: 0.75rem; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+    .food-card .add-btn {
+        width: 100%; background: #0f5132; color: #fff; border: none; border-radius: 8px;
+        padding: 7px; font-size: 0.82rem; font-weight: 600; margin-top: auto;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .food-card .add-btn:hover { background: #0c4128; }
+    @media (max-width: 480px) {
+        .food-grid { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 10px; }
+    }
+</style>
+
 <div class="card">
     <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
         <span><i class="bi bi-egg-fried me-1"></i> Food Items</span>
@@ -214,58 +253,45 @@ require __DIR__ . '/navbar.php';
             </button>
         </div>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th>Image</th>
-                        <th>Item Name</th>
-                        <th>Category</th>
-                        <th>Size</th>
-                        <th>Price</th>
-                        <th>Active</th>
-                        <th class="text-end pe-3">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if (mysqli_num_rows($result) === 0): ?>
-                    <tr><td colspan="7" class="text-center text-muted py-4">No food items found.</td></tr>
-                <?php else: while ($row = mysqli_fetch_assoc($result)): ?>
-                    <tr>
-                        <td>
-                            <?php if (!empty($row['image_path'])): ?>
-                                <img src="<?= e($row['image_path']) ?>" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;" onerror="this.style.display='none'">
-                            <?php else: ?>
-                                <div class="d-flex align-items-center justify-content-center text-muted" style="width:44px;height:44px;background:#f4f6f5;border-radius:8px;"><i class="bi bi-image"></i></div>
+    <div class="card-body">
+        <?php if (mysqli_num_rows($result) === 0): ?>
+            <div class="text-center text-muted py-5">No food items found.</div>
+        <?php else: ?>
+        <div class="food-grid">
+            <?php while ($row = mysqli_fetch_assoc($result)): ?>
+                <div class="food-card <?= (int)$row['is_active'] === 1 ? '' : 'food-card-inactive' ?>">
+                    <div class="food-card-media">
+                        <?php if (!empty($row['image_path'])): ?>
+                            <img src="<?= e($row['image_path']) ?>" class="food-img" alt="" onerror="this.outerHTML='<div class=&quot;food-img-placeholder&quot;><i class=&quot;bi bi-egg-fried&quot;></i></div>'">
+                        <?php else: ?>
+                            <div class="food-img-placeholder"><i class="bi bi-egg-fried"></i></div>
+                        <?php endif; ?>
+                        <?php if ((int)$row['is_active'] !== 1): ?>
+                            <span class="inactive-tag">Inactive</span>
+                        <?php endif; ?>
+                        <button type="button" class="delete-corner-btn"
+                            onclick="openDeleteModal(<?= (int)$row['id'] ?>, '<?= e(addslashes($row['item_name'])) ?>')" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <div class="food-body">
+                        <div class="food-name"><?= e($row['item_name']) ?></div>
+                        <div class="text-muted small text-truncate"><?= e($row['category_name']) ?></div>
+                        <div class="food-meta-row">
+                            <span class="food-price">৳<?= number_format((float)$row['price'], 2) ?></span>
+                            <?php if (!empty($row['size'])): ?>
+                                <span class="food-size"><?= e($row['size']) ?></span>
                             <?php endif; ?>
-                        </td>
-                        <td class="fw-semibold"><?= e($row['item_name']) ?></td>
-                        <td><?= e($row['category_name']) ?></td>
-                        <td><?= e($row['size']) ?: '—' ?></td>
-                        <td>৳<?= number_format((float)$row['price'], 2) ?></td>
-                        <td>
-                            <?php if ((int)$row['is_active'] === 1): ?>
-                                <span class="badge bg-success-subtle text-success">Active</span>
-                            <?php else: ?>
-                                <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="text-end pe-3">
-                            <button class="btn btn-sm btn-outline-brand"
-                                onclick='openEditModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger"
-                                onclick="openDeleteModal(<?= (int)$row['id'] ?>, '<?= e(addslashes($row['item_name'])) ?>')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                <?php endwhile; endif; ?>
-                </tbody>
-            </table>
+                        </div>
+                        <button type="button" class="add-btn"
+                            onclick='openEditModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
+                            <i class="bi bi-pencil-square me-1"></i>Edit
+                        </button>
+                    </div>
+                </div>
+            <?php endwhile; ?>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 
