@@ -164,8 +164,8 @@ unset($b);
 
 $recent_bookings = array_slice($booking_rows, 0, 8);
 
-$page_title = 'Dashboard';
-$active_menu = 'dashboard';
+$page_title = 'Hotel Dashboard';
+$active_menu = 'hotel_dashboard';
 require __DIR__ . '/navbar.php';
 ?>
 
@@ -231,7 +231,16 @@ require __DIR__ . '/navbar.php';
     }
     .table-dashboard th, .table-dashboard td { font-size: 0.82rem; white-space: nowrap; }
 </style>
-
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h5 class="fw-bold mb-0" style="color:#1c3d2e;"><i class="bi bi-cup-hot-fill me-1"></i> Hotel Dashboard</h5>
+        <div class="text-muted small">Live overview of today's hotel operations</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="hotel_front_desk.php" class="btn btn-sm btn-outline-brand"><i class="bi bi-grid-3x3-gap"></i> Front Desk</a>
+        <a href="hotel_booking_list.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-journal-text"></i> All Bookings</a>
+    </div>
+</div>
 <div class="row g-3 mb-3">
     <div class="col-6 col-md-3">
         <div class="stat-card">
