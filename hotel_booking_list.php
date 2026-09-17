@@ -22,17 +22,45 @@ if ($filter_status !== 'all' && in_array($filter_status, ['reserved','checked_in
 $sql .= " ORDER BY b.created_at DESC LIMIT 200";
 $bookings_result = mysqli_query($conn, $sql);
 
-// Build full financial rows
 $bookings = [];
+$booking_ids = [];
 while ($b = mysqli_fetch_assoc($bookings_result)) {
-    $bid = (int)$b['id'];
-    $service_total = get_booking_services_total($conn, $bid);
+    $bookings[(int)$b['id']] = $b;
+    $booking_ids[] = (int)$b['id'];
+}
+
+// ---------- Batch-fetch aggregates for all bookings on this page in 2 queries (avoids N+1) ----------
+$service_totals = [];
+$payment_totals = [];
+if (!empty($booking_ids)) {
+    $idsCsv = implode(',', $booking_ids);
+
+    $svc_res = mysqli_query($conn, "SELECT booking_id, COALESCE(SUM(amount - discount),0) t
+                                     FROM hotel_booking_services
+                                     WHERE booking_id IN ({$idsCsv})
+                                     GROUP BY booking_id");
+    while ($row = mysqli_fetch_assoc($svc_res)) {
+        $service_totals[(int)$row['booking_id']] = (float)$row['t'];
+    }
+
+    $pay_res = mysqli_query($conn, "SELECT booking_id, COALESCE(SUM(amount),0) t
+                                     FROM hotel_payments
+                                     WHERE booking_id IN ({$idsCsv})
+                                     GROUP BY booking_id");
+    while ($row = mysqli_fetch_assoc($pay_res)) {
+        $payment_totals[(int)$row['booking_id']] = (float)$row['t'];
+    }
+}
+
+// Build full financial rows
+foreach ($bookings as $bid => &$b) {
+    $service_total = $service_totals[$bid] ?? 0.0;
     $room_total = (float)$b['room_charge_total'];
     $extension_total = (float)$b['extension_charge_total'];
     $discount = (float)$b['discount'];
     $tax = (float)$b['tax'];
     $total_payable = max(0, $room_total + $extension_total + $service_total - $discount + $tax);
-    $total_paid = get_booking_payments_total($conn, $bid);
+    $total_paid = $payment_totals[$bid] ?? 0.0;
     $balance_due = max(0, $total_payable - $total_paid);
 
     $b['service_total'] = $service_total;
@@ -40,8 +68,9 @@ while ($b = mysqli_fetch_assoc($bookings_result)) {
     $b['total_payable'] = $total_payable;
     $b['total_paid'] = $total_paid;
     $b['balance_due'] = $balance_due;
-    $bookings[] = $b;
 }
+unset($b);
+$bookings = array_values($bookings);
 
 $page_title = 'Booking List';
 $active_menu = 'booking_list';
