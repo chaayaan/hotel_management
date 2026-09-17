@@ -96,6 +96,11 @@ $expenses_today = (float)($expenseRow['t'] ?? 0);
    the full set is used to total up outstanding dues. Financial aggregates
    (services/payments) are then batch-fetched with 2 more IN(...) queries,
    the same pattern used in hotel_booking_list.php — never one query per row.
+
+   IMPORTANT: cancelled (and no_show) bookings are excluded right here at
+   the source query, so their amounts never enter $outstanding_total below.
+   Do not remove this filter — it's what keeps cancelled booking amounts
+   out of the dashboard's Due figure.
    ========================================================================= */
 $bookingsSql = "SELECT b.id, b.reservation_no, b.status, b.reserved_from, b.reserved_until,
                        b.room_charge_total, b.extension_charge_total, b.discount, b.tax,

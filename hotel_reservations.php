@@ -141,7 +141,8 @@ $sql = "SELECT b.*, g.full_name AS guest_name, g.phone AS guest_phone, r.room_nu
         JOIN guests g ON g.id = b.guest_id
         JOIN rooms r ON r.id = b.room_id
         WHERE b.status = 'reserved'";
-$sql .= " ORDER BY b.created_at DESC LIMIT 50";
+// Ascending by check-in date so the earliest upcoming reservation shows first.
+$sql .= " ORDER BY b.reserved_from ASC, b.created_at ASC LIMIT 50";
 $reservations = mysqli_query($conn, $sql);
 
 // ---------- Fetch rooms for the form ----------
@@ -169,10 +170,22 @@ require __DIR__ . '/navbar.php';
     .total-box .grand { font-size: 1.4rem; font-weight: 700; color: #0f5132; }
 
     .reservation-list-scroll { max-height: 720px; overflow-y: auto; }
-    .reservation-row { padding: 14px 16px; border-bottom: 1px solid #eef0ef; }
+    .reservation-row { padding: 14px 16px; border-bottom: 1px solid #eef0ef; transition: background 0.12s ease; }
     .reservation-row:hover { background: #fafbfa; }
     .reservation-row:last-child { border-bottom: none; }
     .reservation-row .min-w-0 { min-width: 0; }
+    .reservation-date-chip {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 0.72rem; font-weight: 700; color: #0f5132;
+        background: #e7f3ec; border-radius: 20px; padding: 2px 10px;
+        white-space: nowrap; flex-shrink: 0;
+    }
+    .card-icon-badge {
+        width: 38px; height: 38px; border-radius: 10px;
+        background: #e7f3ec; color: #0f5132;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem; flex-shrink: 0;
+    }
 </style>
 
 <?php if (!empty($errors)): ?>
@@ -194,8 +207,11 @@ require __DIR__ . '/navbar.php';
     <div class="col-lg-5">
         <div class="card h-100">
             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
-                <span><i class="bi bi-calendar-week me-1"></i> Existing Reservations</span>
-                <span class="badge bg-warning-subtle text-warning-emphasis">Reserved only</span>
+                <span class="d-flex align-items-center gap-2">
+                    <span class="card-icon-badge"><i class="bi bi-calendar-week"></i></span>
+                    Existing Reservations
+                </span>
+                <span class="badge bg-warning-subtle text-warning-emphasis">Reserved only · earliest first</span>
             </div>
             <div class="card-body p-0">
                 <div class="reservation-list-scroll">
@@ -216,7 +232,10 @@ require __DIR__ . '/navbar.php';
                             <span class="text-muted">Room <?= e($row['room_number']) ?> · <?= (int)$row['reserved_nights'] ?>N</span>
                             <span class="fw-semibold">৳<?= number_format((float)$row['total_amount'], 2) ?></span>
                         </div>
-                        <div class="text-muted small mt-1"><?= e(date('d M Y', strtotime($row['reserved_from']))) ?> → <?= e(date('d M Y', strtotime($row['reserved_until']))) ?></div>
+                        <div class="d-flex align-items-center gap-2 mt-2">
+                            <span class="reservation-date-chip"><i class="bi bi-arrow-right-short"></i> <?= e(date('d M Y', strtotime($row['reserved_from']))) ?></span>
+                            <span class="text-muted small">→ <?= e(date('d M Y', strtotime($row['reserved_until']))) ?></span>
+                        </div>
                         <div class="d-flex gap-1 flex-wrap mt-2">
                         <?php if ($row['status'] === 'reserved'): ?>
                             <a href="hotel_reservations_checkin.php?booking_id=<?= $rbid ?>" class="btn btn-sm btn-brand"><i class="bi bi-box-arrow-in-right"></i> Check In</a>
