@@ -67,16 +67,58 @@ function nav_active($key, $active) {
         color: rgba(255,255,255,0.5);
         padding: 14px 20px 6px;
     }
+
+    /* Overview links (dashboards) */
+    .sidebar .overview-link {
+        color: rgba(255,255,255,0.85);
+        padding: 9px 14px;
+        margin: 3px 12px;
+        font-size: 0.88rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 8px;
+        text-decoration: none;
+    }
+    .sidebar .overview-link i { font-size: 1rem; width: 18px; text-align: center; }
+    .sidebar .overview-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .sidebar .overview-link.active {
+        background: transparent;
+        border: 1px solid var(--brand-accent);
+        color: var(--brand-accent);
+        font-weight: 700;
+    }
+
+    /* Collapsible group headers (Hotel / Restaurant / Expenses / Management) */
+    .sidebar .nav-group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 20px 8px;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.92rem;
+        cursor: pointer;
+        text-decoration: none;
+        user-select: none;
+    }
+    .sidebar .nav-group-header .label { display: flex; align-items: center; gap: 10px; }
+    .sidebar .nav-group-header .label i { font-size: 1.05rem; width: 18px; text-align: center; }
+    .sidebar .nav-group-header .chevron { transition: transform 0.2s ease; font-size: 0.8rem; opacity: 0.7; }
+    .sidebar .nav-group-header[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+    .sidebar .nav-group-header:hover { background: rgba(255,255,255,0.06); }
+
     .sidebar .nav-link {
         color: rgba(255,255,255,0.85);
-        padding: 10px 20px;
-        font-size: 0.9rem;
+        padding: 9px 20px 9px 48px;
+        font-size: 0.87rem;
         display: flex;
         align-items: center;
         gap: 10px;
         border-left: 3px solid transparent;
     }
-    .sidebar .nav-link i { font-size: 1rem; width: 18px; text-align: center; }
+    .sidebar .nav-link i { font-size: 0.95rem; width: 18px; text-align: center; }
     .sidebar .nav-link:hover {
         background: rgba(255,255,255,0.08);
         color: #fff;
@@ -158,58 +200,115 @@ function nav_active($key, $active) {
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <i class="bi bi-building"></i>
-        <span>Resort MS <span class="badge-accent">HOTEL</span></span>
+        <span>Resort MS <span class="badge-accent">HOTEL &bull; RESTAURANT</span></span>
     </div>
 
-    <div class="nav-section-title">Main</div>
-    <a href="index.php" class="nav-link <?= nav_active('dashboard', $active_menu) ?>">
-        <i class="bi bi-speedometer2"></i> Dashboard
+    <?php
+        $is_admin_role = in_array($user['designation'], ['admin', 'general_manager']);
+        // Which top-level groups should be open by default: whichever one contains the active page.
+        $hotel_pages       = ['front_desk', 'reservations', 'booking_list', 'services_history'];
+        $restaurant_pages  = ['restaurant_front_desk', 'restaurant_order_list', 'restaurant_tables_status'];
+        $expenses_pages    = ['expense_add', 'expense_history'];
+        $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories'];
+
+        $group_open = function($pages) use ($active_menu) {
+            return in_array($active_menu, $pages) ? 'show' : '';
+        };
+        $group_expanded = function($pages) use ($active_menu) {
+            return in_array($active_menu, $pages) ? 'true' : 'false';
+        };
+    ?>
+
+    <div class="nav-section-title">Overview</div>
+    <?php if ($is_admin_role): ?>
+        <a href="index.php" class="overview-link <?= nav_active('dashboard', $active_menu) ?>">
+            <i class="bi bi-grid-1x2-fill"></i> Admin Dashboard
+        </a>
+    <?php endif; ?>
+    <a href="hotel_dashboard.php" class="overview-link <?= nav_active('hotel_dashboard', $active_menu) ?>">
+        <i class="bi bi-building"></i> Hotel Dashboard
+    </a>
+    <a href="restaurant_dashboard.php" class="overview-link <?= nav_active('restaurant_dashboard', $active_menu) ?>">
+        <i class="bi bi-cup-hot-fill"></i> Restaurant Dashboard
     </a>
 
-    <div class="nav-section-title">Front Desk</div>
-    <a href="hotel_front_desk.php" class="nav-link <?= nav_active('front_desk', $active_menu) ?>">
-        <i class="bi bi-door-open"></i> Front Desk
+    <!-- Hotel -->
+    <a href="#navHotel" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($hotel_pages) ?>">
+        <span class="label"><i class="bi bi-building"></i> Hotel</span>
+        <i class="bi bi-chevron-down chevron"></i>
     </a>
-    <a href="hotel_reservations.php" class="nav-link <?= nav_active('reservations', $active_menu) ?>">
-        <i class="bi bi-calendar-check"></i> Reservations
-    </a>
-    <a href="hotel_booking_list.php" class="nav-link <?= nav_active('booking_list', $active_menu) ?>">
-        <i class="bi bi-journal-text"></i> Booking List
-    </a>
-    <a href="hotel_services_history.php" class="nav-link <?= nav_active('services_history', $active_menu) ?>">
-        <i class="bi bi-clock-history"></i> Service History
-    </a>
+    <div class="collapse <?= $group_open($hotel_pages) ?>" id="navHotel">
+        <a href="hotel_front_desk.php" class="nav-link <?= nav_active('front_desk', $active_menu) ?>">
+            <i class="bi bi-door-open"></i> Front Desk
+        </a>
+        <a href="hotel_reservations.php" class="nav-link <?= nav_active('reservations', $active_menu) ?>">
+            <i class="bi bi-calendar-check"></i> Reservations
+        </a>
+        <a href="hotel_booking_list.php" class="nav-link <?= nav_active('booking_list', $active_menu) ?>">
+            <i class="bi bi-journal-text"></i> Booking List
+        </a>
+        <a href="hotel_services_history.php" class="nav-link <?= nav_active('services_history', $active_menu) ?>">
+            <i class="bi bi-clock-history"></i> Service History
+        </a>
+    </div>
 
-    <div class="nav-section-title">Property Setup</div>
-    <a href="hotel_rooms.php" class="nav-link <?= nav_active('rooms', $active_menu) ?>">
-        <i class="bi bi-door-closed"></i> Rooms
+    <?php if ($is_admin_role): ?>
+    <!-- Restaurant -->
+    <a href="#navRestaurant" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($restaurant_pages) ?>">
+        <span class="label"><i class="bi bi-cup-hot"></i> Restaurant</span>
+        <i class="bi bi-chevron-down chevron"></i>
     </a>
-    <a href="hotel_room_type.php" class="nav-link <?= nav_active('room_types', $active_menu) ?>">
-        <i class="bi bi-grid-3x3-gap"></i> Room Types
-    </a>
+    <div class="collapse <?= $group_open($restaurant_pages) ?>" id="navRestaurant">
+        <a href="restaurant_front_desk.php" class="nav-link <?= nav_active('restaurant_front_desk', $active_menu) ?>">
+            <i class="bi bi-shop"></i> Restaurant Front Desk
+        </a>
+        <a href="restaurant_order_list.php" class="nav-link <?= nav_active('restaurant_order_list', $active_menu) ?>">
+            <i class="bi bi-journal-text"></i> Order List
+        </a>
+    </div>
 
-    <?php if (in_array($user['designation'], ['admin', 'general_manager'])): ?>
-    <div class="nav-section-title">Restaurant</div>
-    <a href="restaurant_front_desk.php" class="nav-link <?= nav_active('restaurant_front_desk', $active_menu) ?>">
-        <i class="bi bi-shop"></i> Restaurant Front Desk
+    <!-- Expenses -->
+    <a href="#navExpenses" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($expenses_pages) ?>">
+        <span class="label"><i class="bi bi-wallet2"></i> Expenses</span>
+        <i class="bi bi-chevron-down chevron"></i>
     </a>
-    <a href="restaurant_order_list.php" class="nav-link <?= nav_active('restaurant_order_list', $active_menu) ?>">
-        <i class="bi bi-journal-text"></i> Order List
-    </a>
-    <a href="restaurant_tables.php" class="nav-link <?= nav_active('restaurant_tables', $active_menu) ?>">
-        <i class="bi bi-table"></i> Restaurant Tables
-    </a>
-    <a href="restaurant_food_categories.php" class="nav-link <?= nav_active('restaurant_food_categories', $active_menu) ?>">
-        <i class="bi bi-tags"></i> Food Categories
-    </a>
-    <a href="restaurant_food_items.php" class="nav-link <?= nav_active('restaurant_food_items', $active_menu) ?>">
-        <i class="bi bi-egg-fried"></i> Food Items
-    </a>
+    <div class="collapse <?= $group_open($expenses_pages) ?>" id="navExpenses">
+        <a href="expense_add.php" class="nav-link <?= nav_active('expense_add', $active_menu) ?>">
+            <i class="bi bi-plus-circle"></i> Add Expense
+        </a>
+        <a href="expense_history.php" class="nav-link <?= nav_active('expense_history', $active_menu) ?>">
+            <i class="bi bi-journal-text"></i> Expense History
+        </a>
+    </div>
 
-    <div class="nav-section-title">Administration</div>
-    <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
-        <i class="bi bi-people"></i> Users
+    <!-- Management -->
+    <a href="#navManagement" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($management_pages) ?>">
+        <span class="label"><i class="bi bi-gear-fill"></i> Management</span>
+        <i class="bi bi-chevron-down chevron"></i>
     </a>
+    <div class="collapse <?= $group_open($management_pages) ?>" id="navManagement">
+        <a href="hotel_rooms.php" class="nav-link <?= nav_active('rooms', $active_menu) ?>">
+            <i class="bi bi-door-closed"></i> Rooms
+        </a>
+        <a href="hotel_room_type.php" class="nav-link <?= nav_active('room_types', $active_menu) ?>">
+            <i class="bi bi-grid-3x3-gap"></i> Room Types
+        </a>
+        <a href="restaurant_tables.php" class="nav-link <?= nav_active('restaurant_tables', $active_menu) ?>">
+            <i class="bi bi-table"></i> Restaurant Tables
+        </a>
+        <a href="restaurant_food_categories.php" class="nav-link <?= nav_active('restaurant_food_categories', $active_menu) ?>">
+            <i class="bi bi-tags"></i> Food Categories
+        </a>
+        <a href="restaurant_food_items.php" class="nav-link <?= nav_active('restaurant_food_items', $active_menu) ?>">
+            <i class="bi bi-egg-fried"></i> Food Items
+        </a>
+        <a href="expense_categories.php" class="nav-link <?= nav_active('expense_categories', $active_menu) ?>">
+            <i class="bi bi-wallet2"></i> Expense Categories
+        </a>
+        <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
+            <i class="bi bi-people"></i> Users
+        </a>
+    </div>
     <?php endif; ?>
 
     <div class="nav-section-title">&nbsp;</div>
