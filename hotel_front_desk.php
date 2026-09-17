@@ -20,52 +20,99 @@ while ($r = mysqli_fetch_assoc($rooms_result)) {
 
 // For each room, find the current active booking (checked_in), and the NEXT upcoming reservation
 // (which may exist even if the room is currently available, occupied, or itself reserved for a nearer date)
-$room_bookings = [];
-foreach ($rooms as $r) {
-    $rid = (int)$r['id'];
+//
+// Instead of firing up to 3 queries per room (N+1), we run 3 batch queries covering all rooms
+// at once, then group the results by room_id in PHP.
 
-    // Active stay (checked in, not checked out)
+$room_ids = array_map(fn($r) => (int)$r['id'], $rooms);
+
+$active_by_room = [];    // room_id => active (checked_in) booking
+$upcoming_by_room = [];  // room_id => nearest not-yet-checked-in reservation
+$reserved_by_room = [];  // room_id => list of ALL 'reserved' bookings, sorted by reserved_from ASC
+
+if (!empty($room_ids)) {
+    $ids_csv = implode(',', $room_ids); // safe: every element is cast to (int) above
+    $today_esc = mysqli_real_escape_string($conn, $today);
+
+    // 1) Active stays (checked in, not checked out) for every room, latest first per room.
     $activeSql = "SELECT b.*, g.full_name AS guest_name, g.phone AS guest_phone
                   FROM hotel_bookings b
                   JOIN guests g ON g.id = b.guest_id
-                  WHERE b.room_id = {$rid} AND b.status = 'checked_in'
-                  ORDER BY b.checkin_at DESC LIMIT 1";
-    $active = mysqli_fetch_assoc(mysqli_query($conn, $activeSql));
+                  WHERE b.room_id IN ({$ids_csv}) AND b.status = 'checked_in'
+                  ORDER BY b.room_id, b.checkin_at DESC";
+    $activeResult = mysqli_query($conn, $activeSql);
+    while ($row = mysqli_fetch_assoc($activeResult)) {
+        $rid = (int)$row['room_id'];
+        // Keep only the first (latest checkin_at) row per room.
+        if (!isset($active_by_room[$rid])) {
+            $active_by_room[$rid] = $row;
+        }
+    }
 
-    // Nearest upcoming reservation not yet checked in (for the room card badge & Check-In/Cancel buttons)
+    // 2) Nearest upcoming reservation not yet checked in, for every room.
     $upcomingSql = "SELECT b.*, g.full_name AS guest_name, g.phone AS guest_phone
                     FROM hotel_bookings b
                     JOIN guests g ON g.id = b.guest_id
-                    WHERE b.room_id = {$rid} AND b.status = 'reserved'
-                      AND b.reserved_until > '{$today}'
-                    ORDER BY b.reserved_from ASC LIMIT 1";
-    $upcoming = mysqli_fetch_assoc(mysqli_query($conn, $upcomingSql));
+                    WHERE b.room_id IN ({$ids_csv}) AND b.status = 'reserved'
+                      AND b.reserved_until > '{$today_esc}'
+                    ORDER BY b.room_id, b.reserved_from ASC";
+    $upcomingResult = mysqli_query($conn, $upcomingSql);
+    while ($row = mysqli_fetch_assoc($upcomingResult)) {
+        $rid = (int)$row['room_id'];
+        // Keep only the first (earliest reserved_from) row per room.
+        if (!isset($upcoming_by_room[$rid])) {
+            $upcoming_by_room[$rid] = $row;
+        }
+    }
+
+    // 3) All 'reserved' bookings for every room (used to compute "next after current" in PHP,
+    //    instead of one extra query per room).
+    $reservedSql = "SELECT b.*, g.full_name AS guest_name
+                    FROM hotel_bookings b
+                    JOIN guests g ON g.id = b.guest_id
+                    WHERE b.room_id IN ({$ids_csv}) AND b.status = 'reserved'
+                    ORDER BY b.room_id, b.reserved_from ASC";
+    $reservedResult = mysqli_query($conn, $reservedSql);
+    while ($row = mysqli_fetch_assoc($reservedResult)) {
+        $rid = (int)$row['room_id'];
+        $reserved_by_room[$rid][] = $row;
+    }
+}
+
+$room_bookings = [];
+foreach ($room_ids as $rid) {
+    $active = $active_by_room[$rid] ?? null;
+    $upcoming = $upcoming_by_room[$rid] ?? null;
 
     // Next reservation strictly AFTER whichever booking is currently occupying/reserving the room right now.
     // This is what should show as "Next Reservation" on an occupied room's card.
     $next_after_current = null;
+    $room_reserved = $reserved_by_room[$rid] ?? [];
+
     if ($active) {
-        $nextSql = "SELECT b.*, g.full_name AS guest_name
-                    FROM hotel_bookings b
-                    JOIN guests g ON g.id = b.guest_id
-                    WHERE b.room_id = {$rid} AND b.status = 'reserved'
-                      AND b.reserved_from >= '{$active['reserved_until']}'
-                    ORDER BY b.reserved_from ASC LIMIT 1";
-        $next_after_current = mysqli_fetch_assoc(mysqli_query($conn, $nextSql)) ?: null;
+        $cutoff = $active['reserved_until'];
+        foreach ($room_reserved as $candidate) {
+            if ($candidate['reserved_from'] >= $cutoff) {
+                $next_after_current = $candidate;
+                break; // list is sorted by reserved_from ASC, so first match wins
+            }
+        }
     } elseif ($upcoming) {
-        $nextSql = "SELECT b.*, g.full_name AS guest_name
-                    FROM hotel_bookings b
-                    JOIN guests g ON g.id = b.guest_id
-                    WHERE b.room_id = {$rid} AND b.status = 'reserved'
-                      AND b.id != {$upcoming['id']}
-                      AND b.reserved_from >= '{$upcoming['reserved_until']}'
-                    ORDER BY b.reserved_from ASC LIMIT 1";
-        $next_after_current = mysqli_fetch_assoc(mysqli_query($conn, $nextSql)) ?: null;
+        $cutoff = $upcoming['reserved_until'];
+        foreach ($room_reserved as $candidate) {
+            if ((int)$candidate['id'] === (int)$upcoming['id']) {
+                continue;
+            }
+            if ($candidate['reserved_from'] >= $cutoff) {
+                $next_after_current = $candidate;
+                break;
+            }
+        }
     }
 
     $room_bookings[$rid] = [
-        'active' => $active ?: null,
-        'upcoming' => $upcoming ?: null,
+        'active' => $active,
+        'upcoming' => $upcoming,
         'next_after_current' => $next_after_current,
     ];
 }
