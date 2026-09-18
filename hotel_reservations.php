@@ -223,7 +223,7 @@ require __DIR__ . '/navbar.php';
     }
     .simple-field-input.form-control,
     .simple-field-input.form-select {
-        border-radius: 22px; border: 1px solid #cfd5d1; padding: 10px 16px; font-size: 0.9rem;
+        border-radius: 8px; border: 1px solid #cfd5d1; padding: 10px 16px; font-size: 0.9rem;
     }
     .simple-field-input.form-control:focus,
     .simple-field-input.form-select:focus {
@@ -231,7 +231,7 @@ require __DIR__ . '/navbar.php';
     }
 
     /* ---------- Calendar date picker (image-matched layout) ---------- */
-    .rescal-label { font-weight: 700; font-size: 0.85rem; color: #1c3d2e; margin-bottom: 8px; display: block; }
+    .rescal-label { font-weight: 700; font-size: 1.05rem; color: #1c3d2e; margin-bottom: 8px; display: block; }
 
     .rescal-card {
         border: 1px solid #dfe3e1; border-radius: 10px; background: #fff;
@@ -282,11 +282,11 @@ require __DIR__ . '/navbar.php';
     .rescal-day.rescal-in-range:hover { background: #0f5132; }
 
     .rescal-summary {
-        border: 1px solid #e6e9e7; border-radius: 8px; background: #fafbfa;
-        padding: 6px 10px; display: flex; align-items: center; gap: 6px;
-        font-size: 0.76rem; color: #6c776f; margin-top: 8px;
+        border: 1px solid #cfd5d1; border-radius: 8px; background: #fff;
+        padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+        font-size: 0.9rem; color: #6c776f; margin-top: 8px;
     }
-    .rescal-summary i { color: #6c776f; font-size: 0.8rem; }
+    .rescal-summary i { color: #6c776f; font-size: 0.9rem; }
     .rescal-summary .rc-value { font-weight: 700; color: #1c3d2e; }
     .rescal-summary .rc-warn { color: #b3261e; font-weight: 700; }
 
@@ -431,7 +431,7 @@ require __DIR__ . '/navbar.php';
 
             <hr>
 
-            <div class="row g-3">
+            <div class="row g-3 align-items-start">
                 <div class="col-md-6">
                     <div class="row g-3">
                         <div class="col-12">
