@@ -25,120 +25,174 @@ function nav_active($key, $active) {
         --brand-primary: #0f5132;
         --brand-primary-dark: #0c4128;
         --brand-accent: #d4a537;
-        --sidebar-width: 240px;
+        --rail-width: 70px;
+        --panel-width: 170px;
+        --sidebar-width: calc(var(--rail-width) + var(--panel-width));
+        --header-height: 61px;
         --bg-soft: #f4f6f5;
     }
+    /* When collapsed, the sidebar shell shrinks to just the icon rail width */
+    body.sidebar-collapsed .sidebar,
+    body.sidebar-collapsed .sidebar-header { width: var(--rail-width); }
+    body.sidebar-collapsed .main-wrapper { margin-left: var(--rail-width); }
+    body.sidebar-collapsed .nav-panel { display: none; }
+    body.sidebar-collapsed .sidebar-header .brand-text { display: none; }
+    body.sidebar-collapsed .sidebar-header { padding: 0; justify-content: center; }
     * { box-sizing: border-box; }
     body {
         background: var(--bg-soft);
         font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     }
+
+    /* ===== Sidebar shell (rail + panel side by side) ===== */
     .sidebar {
         position: fixed;
         top: 0; left: 0; bottom: 0;
         width: var(--sidebar-width);
-        background: var(--brand-primary);
-        color: #fff;
-        overflow-y: auto;
+        display: flex;
         z-index: 1030;
-        transition: transform 0.25s ease;
+        transition: transform 0.25s ease, width 0.25s ease;
     }
-    .sidebar-brand {
-        padding: 18px 20px;
-        font-weight: 700;
-        font-size: 1.05rem;
+
+    /* ===== Icon rail (thin strip: Dashboards / Hotel / Restaurant / Expenses / Management) ===== */
+    .nav-rail {
+        width: var(--rail-width);
+        background: var(--brand-primary-dark);
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        overflow-y: auto;
+        flex-shrink: 0;
+        margin-top: var(--header-height);
+    }
+    /* ===== Single combined brand header spanning rail + panel, same height as topbar ===== */
+    .sidebar-header {
+        position: fixed;
+        top: 0; left: 0;
+        width: var(--sidebar-width);
+        height: var(--header-height);
+        background: var(--brand-primary-dark);
         border-bottom: 1px solid rgba(255,255,255,0.12);
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        padding: 0 10px;
+        z-index: 1031;
+        flex-shrink: 0;
     }
-    .sidebar-brand .badge-accent {
-        background: var(--brand-accent);
-        color: #1c1c1c;
-        font-size: 0.65rem;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-weight: 600;
-    }
-    .sidebar .nav-section-title {
-        text-transform: uppercase;
-        font-size: 0.68rem;
-        letter-spacing: 0.06em;
-        color: rgba(255,255,255,0.5);
-        padding: 14px 20px 6px;
-    }
-
-    /* Overview links (dashboards) */
-    .sidebar .overview-link {
-        color: rgba(255,255,255,0.85);
-        padding: 9px 14px;
-        margin: 3px 12px;
-        font-size: 0.88rem;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border-radius: 8px;
-        text-decoration: none;
-    }
-    .sidebar .overview-link i { font-size: 1rem; width: 18px; text-align: center; }
-    .sidebar .overview-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
-    .sidebar .overview-link.active {
-        background: transparent;
-        border: 1px solid var(--brand-accent);
-        color: var(--brand-accent);
-        font-weight: 700;
-    }
-
-    /* Collapsible group headers (Hotel / Restaurant / Expenses / Management) */
-    .sidebar .nav-group-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 12px 20px 8px;
+    .sidebar-header i { color: #fff; font-size: 1.3rem; flex-shrink: 0; }
+    .sidebar-header .brand-text {
         color: #fff;
         font-weight: 700;
-        font-size: 0.92rem;
-        cursor: pointer;
-        text-decoration: none;
-        user-select: none;
+        font-size: 0.78rem;
+        line-height: 1.15;
+        white-space: normal;
+        overflow-wrap: break-word;
     }
-    .sidebar .nav-group-header .label { display: flex; align-items: center; gap: 10px; }
-    .sidebar .nav-group-header .label i { font-size: 1.05rem; width: 18px; text-align: center; }
-    .sidebar .nav-group-header .chevron { transition: transform 0.2s ease; font-size: 0.8rem; opacity: 0.7; }
-    .sidebar .nav-group-header[aria-expanded="true"] .chevron { transform: rotate(180deg); }
-    .sidebar .nav-group-header:hover { background: rgba(255,255,255,0.06); }
-
-    .sidebar .nav-link {
-        color: rgba(255,255,255,0.85);
-        padding: 9px 20px 9px 48px;
-        font-size: 0.87rem;
+    .rail-item {
+        border: none;
+        background: transparent;
+        color: rgba(255,255,255,0.75);
+        padding: 12px 5px 10px;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 10px;
+        gap: 5px;
+        text-decoration: none;
+        cursor: pointer;
         border-left: 3px solid transparent;
+        font-size: 0;
+        width: 100%;
     }
-    .sidebar .nav-link i { font-size: 0.95rem; width: 18px; text-align: center; }
-    .sidebar .nav-link:hover {
+    .rail-item i { font-size: 1.4rem; }
+    .rail-item .rail-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.01em;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.1;
+    }
+    .rail-item:hover {
         background: rgba(255,255,255,0.08);
         color: #fff;
     }
-    .sidebar .nav-link.active {
+    .rail-item.active {
+        background: var(--brand-primary);
+        color: #fff;
+        border-left-color: var(--brand-accent);
+    }
+    .rail-item.active i { color: var(--brand-accent); }
+
+    /* ===== Flyout panel (the actual links for the selected group) ===== */
+    .nav-panel {
+        width: var(--panel-width);
+        background: var(--brand-primary);
+        color: #fff;
+        overflow-y: auto;
+        flex-shrink: 0;
+        margin-top: var(--header-height);
+        padding-top: 10px;
+    }
+    .nav-panel-group { display: none; }
+    .nav-panel-group.active { display: block; }
+
+    /* Overview links (dashboards) reuse same link style inside panel too */
+    .nav-panel .overview-link,
+    .nav-panel .nav-link {
+        color: rgba(255,255,255,0.85);
+        padding: 9px 8px;
+        margin: 3px 4px;
+        font-size: 0.83rem;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 8px;
+        text-decoration: none;
+        border-left: 3px solid transparent;
+        line-height: 1.25;
+    }
+    .nav-panel .overview-link i,
+    .nav-panel .nav-link i { font-size: 0.98rem; width: 16px; text-align: center; flex-shrink: 0; }
+    .nav-panel .overview-link:hover,
+    .nav-panel .nav-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .nav-panel .overview-link.active,
+    .nav-panel .nav-link.active {
         background: rgba(255,255,255,0.12);
         color: #fff;
         border-left-color: var(--brand-accent);
-        font-weight: 600;
+        font-weight: 700;
     }
+
     .main-wrapper {
         margin-left: var(--sidebar-width);
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+        transition: margin-left 0.25s ease;
     }
+    .sidebar-header { transition: width 0.25s ease; }
+
+    /* ===== Collapse/expand toggle button, sits at bottom of the rail ===== */
+    .rail-collapse-btn {
+        margin-top: auto;
+        border: none;
+        background: transparent;
+        color: rgba(255,255,255,0.6);
+        padding: 14px 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .rail-collapse-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .rail-collapse-btn i { font-size: 1.1rem; transition: transform 0.25s ease; }
+    body.sidebar-collapsed .rail-collapse-btn i { transform: rotate(180deg); }
     .topbar {
         background: #fff;
         border-bottom: 1px solid #e5e7eb;
-        padding: 12px 24px;
+        height: var(--header-height);
+        padding: 0 24px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -171,6 +225,13 @@ function nav_active($key, $active) {
         .sidebar.show { transform: translateX(0); }
         .main-wrapper { margin-left: 0; }
         .sidebar-toggle-btn { display: inline-flex; }
+        /* Ignore collapsed state on mobile: sidebar is off-canvas full width when shown */
+        body.sidebar-collapsed .sidebar,
+        body.sidebar-collapsed .sidebar-header { width: var(--sidebar-width); }
+        body.sidebar-collapsed .main-wrapper { margin-left: 0; }
+        body.sidebar-collapsed .nav-panel { display: block; }
+        body.sidebar-collapsed .sidebar-header .brand-text { display: block; }
+        body.sidebar-collapsed .sidebar-header { padding: 0 20px; justify-content: flex-start; }
     }
 
     /* Common card/table styling used across pages */
@@ -197,125 +258,198 @@ function nav_active($key, $active) {
 </head>
 <body>
 
+<?php
+    $is_admin_role = in_array($user['designation'], ['admin', 'general_manager']);
+
+    // Which pages belong to which group (drives both "which rail icon is active"
+    // and "which panel opens by default").
+    $dashboard_pages   = ['dashboard', 'hotel_dashboard', 'restaurant_dashboard'];
+    $hotel_pages       = ['front_desk', 'reservations', 'booking_list', 'services_history'];
+    $restaurant_pages  = ['restaurant_front_desk', 'restaurant_order_list', 'restaurant_tables_status'];
+    $expenses_pages    = ['expense_add', 'expense_history'];
+    $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories', 'settings'];
+
+    $in_group = function($pages) use ($active_menu) {
+        return in_array($active_menu, $pages);
+    };
+
+    // Figure out which group is active so we know which rail icon + panel to open.
+    $active_group = 'dashboard';
+    if ($in_group($hotel_pages)) $active_group = 'hotel';
+    elseif ($in_group($restaurant_pages)) $active_group = 'restaurant';
+    elseif ($in_group($expenses_pages)) $active_group = 'expenses';
+    elseif ($in_group($management_pages)) $active_group = 'management';
+    elseif ($in_group($dashboard_pages)) $active_group = 'dashboard';
+?>
+
+<!-- ===== Single combined header: rail width + panel width, matches topbar height ===== -->
+<div class="sidebar-header">
+    <i class="bi bi-building"></i>
+    <span class="brand-text">Resort Management System</span>
+</div>
+
 <nav class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-        <i class="bi bi-building"></i>
-        <span>Resort MS <span class="badge-accent">HOTEL &bull; RESTAURANT</span></span>
+
+    <!-- ===== Thin icon strip ===== -->
+    <div class="nav-rail">
+        <button type="button" class="rail-item <?= $active_group === 'dashboard' ? 'active' : '' ?>" data-group="dashboard">
+            <i class="bi bi-grid-1x2-fill"></i>
+            <span class="rail-label">Dashboards</span>
+        </button>
+
+        <button type="button" class="rail-item <?= $active_group === 'hotel' ? 'active' : '' ?>" data-group="hotel">
+            <i class="bi bi-building"></i>
+            <span class="rail-label">Hotel</span>
+        </button>
+
+        <?php if ($is_admin_role): ?>
+        <button type="button" class="rail-item <?= $active_group === 'restaurant' ? 'active' : '' ?>" data-group="restaurant">
+            <i class="bi bi-cup-hot"></i>
+            <span class="rail-label">Restaurant</span>
+        </button>
+
+        <button type="button" class="rail-item <?= $active_group === 'expenses' ? 'active' : '' ?>" data-group="expenses">
+            <i class="bi bi-wallet2"></i>
+            <span class="rail-label">Expenses</span>
+        </button>
+
+        <button type="button" class="rail-item <?= $active_group === 'management' ? 'active' : '' ?>" data-group="management">
+            <i class="bi bi-gear-fill"></i>
+            <span class="rail-label">Management</span>
+        </button>
+        <?php endif; ?>
+
+        <button type="button" class="rail-collapse-btn" id="sidebarCollapseBtn" title="Expand / collapse sidebar">
+            <i class="bi bi-chevron-left"></i>
+        </button>
     </div>
 
-    <?php
-        $is_admin_role = in_array($user['designation'], ['admin', 'general_manager']);
-        // Which top-level groups should be open by default: whichever one contains the active page.
-        $hotel_pages       = ['front_desk', 'reservations', 'booking_list', 'services_history'];
-        $restaurant_pages  = ['restaurant_front_desk', 'restaurant_order_list', 'restaurant_tables_status'];
-        $expenses_pages    = ['expense_add', 'expense_history'];
-        $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories', 'settings'];
+    <!-- ===== Flyout panel: shows only the links for the selected group ===== -->
+    <div class="nav-panel">
 
-        $group_open = function($pages) use ($active_menu) {
-            return in_array($active_menu, $pages) ? 'show' : '';
-        };
-        $group_expanded = function($pages) use ($active_menu) {
-            return in_array($active_menu, $pages) ? 'true' : 'false';
-        };
-    ?>
+        <!-- Dashboards -->
+        <div class="nav-panel-group <?= $active_group === 'dashboard' ? 'active' : '' ?>" data-panel="dashboard">
+            <?php if ($is_admin_role): ?>
+            <a href="index.php" class="overview-link <?= nav_active('index', $active_menu) ?>">
+                <i class="bi bi-speedometer2"></i> Admin Dashboard
+            </a>
+            <?php endif; ?>
+            <a href="hotel_dashboard.php" class="overview-link <?= nav_active('hotel_dashboard', $active_menu) ?>">
+                <i class="bi bi-building"></i> Hotel Dashboard
+            </a>
+            <a href="restaurant_dashboard.php" class="overview-link <?= nav_active('restaurant_dashboard', $active_menu) ?>">
+                <i class="bi bi-cup-hot-fill"></i> Restaurant Dashboard
+            </a>
+        </div>
 
-    <div class="nav-section-title">Overview</div>
-    <?php if ($is_admin_role): ?>
-        <a href="index.php" class="overview-link <?= nav_active('dashboard', $active_menu) ?>">
-            <i class="bi bi-grid-1x2-fill"></i> Admin Dashboard
-        </a>
-    <?php endif; ?>
-    <a href="hotel_dashboard.php" class="overview-link <?= nav_active('hotel_dashboard', $active_menu) ?>">
-        <i class="bi bi-building"></i> Hotel Dashboard
-    </a>
-    <a href="restaurant_dashboard.php" class="overview-link <?= nav_active('restaurant_dashboard', $active_menu) ?>">
-        <i class="bi bi-cup-hot-fill"></i> Restaurant Dashboard
-    </a>
+        <!-- Hotel -->
+        <div class="nav-panel-group <?= $active_group === 'hotel' ? 'active' : '' ?>" data-panel="hotel">
+            <a href="hotel_front_desk.php" class="nav-link <?= nav_active('front_desk', $active_menu) ?>">
+                <i class="bi bi-door-open"></i> Front Desk
+            </a>
+            <a href="hotel_reservations.php" class="nav-link <?= nav_active('reservations', $active_menu) ?>">
+                <i class="bi bi-calendar-check"></i> Reservations
+            </a>
+            <a href="hotel_booking_list.php" class="nav-link <?= nav_active('booking_list', $active_menu) ?>">
+                <i class="bi bi-journal-text"></i> Booking List
+            </a>
+            <a href="hotel_services_history.php" class="nav-link <?= nav_active('services_history', $active_menu) ?>">
+                <i class="bi bi-clock-history"></i> Service History
+            </a>
+        </div>
 
-    <!-- Hotel -->
-    <a href="#navHotel" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($hotel_pages) ?>">
-        <span class="label"><i class="bi bi-building"></i> Hotel</span>
-        <i class="bi bi-chevron-down chevron"></i>
-    </a>
-    <div class="collapse <?= $group_open($hotel_pages) ?>" id="navHotel">
-        <a href="hotel_front_desk.php" class="nav-link <?= nav_active('front_desk', $active_menu) ?>">
-            <i class="bi bi-door-open"></i> Front Desk
-        </a>
-        <a href="hotel_reservations.php" class="nav-link <?= nav_active('reservations', $active_menu) ?>">
-            <i class="bi bi-calendar-check"></i> Reservations
-        </a>
-        <a href="hotel_booking_list.php" class="nav-link <?= nav_active('booking_list', $active_menu) ?>">
-            <i class="bi bi-journal-text"></i> Booking List
-        </a>
-        <a href="hotel_services_history.php" class="nav-link <?= nav_active('services_history', $active_menu) ?>">
-            <i class="bi bi-clock-history"></i> Service History
-        </a>
+        <?php if ($is_admin_role): ?>
+        <!-- Restaurant -->
+        <div class="nav-panel-group <?= $active_group === 'restaurant' ? 'active' : '' ?>" data-panel="restaurant">
+            <a href="restaurant_front_desk.php" class="nav-link <?= nav_active('restaurant_front_desk', $active_menu) ?>">
+                <i class="bi bi-shop"></i> Restaurant Front Desk
+            </a>
+            <a href="restaurant_order_list.php" class="nav-link <?= nav_active('restaurant_order_list', $active_menu) ?>">
+                <i class="bi bi-journal-text"></i> Order List
+            </a>
+        </div>
+
+        <!-- Expenses -->
+        <div class="nav-panel-group <?= $active_group === 'expenses' ? 'active' : '' ?>" data-panel="expenses">
+            <a href="expense_add.php" class="nav-link <?= nav_active('expense_add', $active_menu) ?>">
+                <i class="bi bi-plus-circle"></i> Add Expense
+            </a>
+            <a href="expense_history.php" class="nav-link <?= nav_active('expense_history', $active_menu) ?>">
+                <i class="bi bi-journal-text"></i> Expense History
+            </a>
+        </div>
+
+        <!-- Management -->
+        <div class="nav-panel-group <?= $active_group === 'management' ? 'active' : '' ?>" data-panel="management">
+            <a href="hotel_rooms.php" class="nav-link <?= nav_active('rooms', $active_menu) ?>">
+                <i class="bi bi-door-closed"></i> Rooms
+            </a>
+            <a href="hotel_room_type.php" class="nav-link <?= nav_active('room_types', $active_menu) ?>">
+                <i class="bi bi-grid-3x3-gap"></i> Room Types
+            </a>
+            <a href="restaurant_tables.php" class="nav-link <?= nav_active('restaurant_tables', $active_menu) ?>">
+                <i class="bi bi-table"></i> Restaurant Tables
+            </a>
+            <a href="restaurant_food_categories.php" class="nav-link <?= nav_active('restaurant_food_categories', $active_menu) ?>">
+                <i class="bi bi-tags"></i> Food Categories
+            </a>
+            <a href="restaurant_food_items.php" class="nav-link <?= nav_active('restaurant_food_items', $active_menu) ?>">
+                <i class="bi bi-egg-fried"></i> Food Items
+            </a>
+            <a href="expense_categories.php" class="nav-link <?= nav_active('expense_categories', $active_menu) ?>">
+                <i class="bi bi-wallet2"></i> Expense Categories
+            </a>
+            <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="hotel_settings.php" class="nav-link <?= nav_active('settings', $active_menu) ?>">
+                <i class="bi bi-gear"></i> Resort Settings
+            </a>
+        </div>
+        <?php endif; ?>
+
     </div>
-
-    <?php if ($is_admin_role): ?>
-    <!-- Restaurant -->
-    <a href="#navRestaurant" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($restaurant_pages) ?>">
-        <span class="label"><i class="bi bi-cup-hot"></i> Restaurant</span>
-        <i class="bi bi-chevron-down chevron"></i>
-    </a>
-    <div class="collapse <?= $group_open($restaurant_pages) ?>" id="navRestaurant">
-        <a href="restaurant_front_desk.php" class="nav-link <?= nav_active('restaurant_front_desk', $active_menu) ?>">
-            <i class="bi bi-shop"></i> Restaurant Front Desk
-        </a>
-        <a href="restaurant_order_list.php" class="nav-link <?= nav_active('restaurant_order_list', $active_menu) ?>">
-            <i class="bi bi-journal-text"></i> Order List
-        </a>
-    </div>
-
-    <!-- Expenses -->
-    <a href="#navExpenses" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($expenses_pages) ?>">
-        <span class="label"><i class="bi bi-wallet2"></i> Expenses</span>
-        <i class="bi bi-chevron-down chevron"></i>
-    </a>
-    <div class="collapse <?= $group_open($expenses_pages) ?>" id="navExpenses">
-        <a href="expense_add.php" class="nav-link <?= nav_active('expense_add', $active_menu) ?>">
-            <i class="bi bi-plus-circle"></i> Add Expense
-        </a>
-        <a href="expense_history.php" class="nav-link <?= nav_active('expense_history', $active_menu) ?>">
-            <i class="bi bi-journal-text"></i> Expense History
-        </a>
-    </div>
-
-    <!-- Management -->
-    <a href="#navManagement" class="nav-group-header" data-bs-toggle="collapse" aria-expanded="<?= $group_expanded($management_pages) ?>">
-        <span class="label"><i class="bi bi-gear-fill"></i> Management</span>
-        <i class="bi bi-chevron-down chevron"></i>
-    </a>
-    <div class="collapse <?= $group_open($management_pages) ?>" id="navManagement">
-        <a href="hotel_rooms.php" class="nav-link <?= nav_active('rooms', $active_menu) ?>">
-            <i class="bi bi-door-closed"></i> Rooms
-        </a>
-        <a href="hotel_room_type.php" class="nav-link <?= nav_active('room_types', $active_menu) ?>">
-            <i class="bi bi-grid-3x3-gap"></i> Room Types
-        </a>
-        <a href="restaurant_tables.php" class="nav-link <?= nav_active('restaurant_tables', $active_menu) ?>">
-            <i class="bi bi-table"></i> Restaurant Tables
-        </a>
-        <a href="restaurant_food_categories.php" class="nav-link <?= nav_active('restaurant_food_categories', $active_menu) ?>">
-            <i class="bi bi-tags"></i> Food Categories
-        </a>
-        <a href="restaurant_food_items.php" class="nav-link <?= nav_active('restaurant_food_items', $active_menu) ?>">
-            <i class="bi bi-egg-fried"></i> Food Items
-        </a>
-        <a href="expense_categories.php" class="nav-link <?= nav_active('expense_categories', $active_menu) ?>">
-            <i class="bi bi-wallet2"></i> Expense Categories
-        </a>
-        <a href="users.php" class="nav-link <?= nav_active('users', $active_menu) ?>">
-            <i class="bi bi-people"></i> Users
-        </a>
-        <a href="hotel_settings.php" class="nav-link <?= nav_active('settings', $active_menu) ?>">
-            <i class="bi bi-gear"></i> Resort Settings
-        </a>
-    </div>
-    <?php endif; ?>
-
-    <div class="nav-section-title">&nbsp;</div>
 </nav>
+
+<script>
+document.querySelectorAll('.rail-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var group = btn.getAttribute('data-group');
+
+        document.querySelectorAll('.rail-item').forEach(function (b) {
+            b.classList.toggle('active', b === btn);
+        });
+        document.querySelectorAll('.nav-panel-group').forEach(function (panel) {
+            panel.classList.toggle('active', panel.getAttribute('data-panel') === group);
+        });
+
+        // If sidebar is collapsed and user clicks a rail item, auto-expand
+        // so they can see the panel for the group they just selected.
+        if (document.body.classList.contains('sidebar-collapsed')) {
+            setSidebarCollapsed(false);
+        }
+    });
+});
+
+function setSidebarCollapsed(collapsed) {
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+}
+
+(function initSidebarCollapse() {
+    var saved = null;
+    try { saved = localStorage.getItem('sidebarCollapsed'); } catch (e) {}
+    if (saved === '1') {
+        document.body.classList.add('sidebar-collapsed');
+    }
+    var btn = document.getElementById('sidebarCollapseBtn');
+    if (btn) {
+        btn.addEventListener('click', function () {
+            setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
+        });
+    }
+})();
+</script>
 
 <div class="main-wrapper">
     <div class="topbar">
