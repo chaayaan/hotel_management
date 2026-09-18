@@ -74,6 +74,63 @@ require __DIR__ . '/navbar.php';
     .due-note { background: #fff3cd; color: #664d03; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; margin-top: 12px; text-align: center; font-weight: 600; }
     .paid-note { background: #d1f5e0; color: #0f5132; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; margin-top: 12px; text-align: center; font-weight: 600; }
 
+    /* ---------- On-screen POS-style receipt (mirrors the printed #printReceipt look) ---------- */
+    .receipt-wrap { display: flex; justify-content: center; }
+    .receipt-slip {
+        width: 100%; max-width: 360px; background: #fff;
+        border: 1px solid #e2e5e3; border-radius: 6px;
+        box-shadow: 0 2px 10px rgba(20,40,30,0.06);
+        padding: 20px 18px 16px;
+        font-family: 'Courier New', Courier, monospace;
+        color: #1e2b23;
+    }
+    .receipt-slip .r-header { text-align: center; border-bottom: 2px dashed #d7dbd8; padding-bottom: 12px; margin-bottom: 12px; }
+    .receipt-slip .r-header .r-name { font-weight: 800; font-size: 1.05rem; color: #0f5132; letter-spacing: 0.02em; }
+    .receipt-slip .r-header .r-sub { font-size: 0.72rem; color: #6c776f; margin-top: 2px; line-height: 1.4; }
+    .receipt-slip .r-header .r-invoice { font-size: 0.7rem; color: #8a938e; margin-top: 6px; }
+
+    .receipt-slip .r-status-chip {
+        display: block; text-align: center; font-size: 0.68rem; font-weight: 700;
+        letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 0; margin-bottom: 10px;
+        border-radius: 4px;
+    }
+
+    .receipt-slip .r-row { display: flex; justify-content: space-between; font-size: 0.78rem; padding: 2px 0; gap: 10px; }
+    .receipt-slip .r-row .r-k { color: #6c776f; }
+    .receipt-slip .r-row .r-v { font-weight: 600; text-align: right; }
+
+    .receipt-slip .r-divider { border: none; border-top: 1px dashed #d7dbd8; margin: 10px 0; }
+    .receipt-slip .r-section-title {
+        font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+        color: #6c776f; font-weight: 700; margin: 10px 0 4px;
+    }
+
+    .receipt-slip .r-item {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 0.78rem; padding: 3px 0; gap: 8px;
+    }
+    .receipt-slip .r-item .r-item-name { flex: 1 1 auto; }
+    .receipt-slip .r-item .r-item-sub { display: block; font-size: 0.68rem; color: #9aa39d; }
+    .receipt-slip .r-item .r-item-amt { flex: 0 0 auto; font-weight: 600; white-space: nowrap; }
+
+    .receipt-slip .r-totals { border-top: 2px dashed #d7dbd8; margin-top: 12px; padding-top: 10px; }
+    .receipt-slip .r-totals .r-row { font-size: 0.8rem; }
+    .receipt-slip .r-totals .r-grand {
+        display: flex; justify-content: space-between; font-size: 1.05rem; font-weight: 800;
+        color: #0f5132; border-top: 1px solid #d7dbd8; margin-top: 6px; padding-top: 8px;
+    }
+    .receipt-slip .r-totals .r-paid-row { font-size: 0.78rem; color: #6c776f; padding: 2px 0; display: flex; justify-content: space-between; }
+    .receipt-slip .r-totals .r-due-row {
+        display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700;
+        margin-top: 4px; padding-top: 4px; border-top: 1px dashed #d7dbd8;
+    }
+
+    .receipt-slip .r-footer { text-align: center; font-size: 0.7rem; color: #9aa39d; margin-top: 14px; border-top: 2px dashed #d7dbd8; padding-top: 10px; }
+    .receipt-slip .r-footer .r-thanks { font-weight: 700; color: #1c3d2e; font-size: 0.78rem; margin-bottom: 2px; }
+    .screen-wifi { display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; margin-top:14px; padding-top:12px; border-top:2px dashed #d7dbd8; font-size:0.68rem; color:#6c776f; }
+    .screen-wifi img { display:block; width:110px; height:110px; image-rendering:auto; }
+    .screen-wifi .wifi-name { color:#9aa39d; }
+
     #printReceipt { display: none; font-family: Arial, Helvetica, sans-serif; }
 
     @media print {
@@ -103,93 +160,123 @@ require __DIR__ . '/navbar.php';
 </style>
 
 <div class="row g-3">
+    <!-- LEFT: on-screen POS-style receipt slip -->
     <div class="col-lg-7">
-        <div class="pos-panel">
-            <h6><i class="bi bi-clipboard-data me-1"></i>Complete Booking History</h6>
+        <div class="receipt-wrap">
+            <div class="receipt-slip">
+                <div class="r-header">
+                    <div class="r-name"><?= e($resort_name) ?></div>
+                    <?php if ($resort_address): ?><div class="r-sub"><?= e($resort_address) ?></div><?php endif; ?>
+                    <?php if ($resort_phone || $resort_website): ?>
+                    <div class="r-sub"><?= e($resort_phone) ?><?= ($resort_phone && $resort_website) ? ' · ' : '' ?><?= e($resort_website) ?></div>
+                    <?php endif; ?>
+                    <div class="r-invoice">Invoice: <?= e($booking['reservation_no']) ?><br><?= e(date('d M Y, h:i A')) ?></div>
+                </div>
 
-            <div class="section-label">Guest Information</div>
-            <div class="info-line"><span class="label">Guest</span><span class="value"><?= e($booking['guest_name']) ?></span></div>
-            <div class="info-line"><span class="label">Phone</span><span class="value"><?= e($booking['guest_phone']) ?></span></div>
-            <?php if (!empty($booking['guest_email'])): ?>
-            <div class="info-line"><span class="label">Email</span><span class="value"><?= e($booking['guest_email']) ?></span></div>
-            <?php endif; ?>
+                <span class="r-status-chip" style="background: <?= booking_status_badge($booking['status']) ? '' : '' ?>#eef2f0; color:#1c3d2e;">
+                    <?= e(ucwords(str_replace('_',' ',$booking['status']))) ?>
+                </span>
 
-            <div class="section-label">Room & Reservation</div>
-            <div class="info-line"><span class="label">Reservation No</span><span class="value"><?= e($booking['reservation_no']) ?></span></div>
-            <div class="info-line"><span class="label">Room</span><span class="value"><?= e($booking['room_number']) ?> (<?= e($booking['room_type_name']) ?>)</span></div>
-            <div class="info-line"><span class="label">Reserved From</span><span class="value"><?= e(date('d M Y', strtotime($booking['reserved_from']))) ?></span></div>
-            <div class="info-line"><span class="label">Reserved Until</span><span class="value"><?= e(date('d M Y', strtotime($booking['reserved_until']))) ?></span></div>
-            <div class="info-line"><span class="label">Nights</span><span class="value"><?= (int)$booking['reserved_nights'] ?></span></div>
-            <div class="info-line"><span class="label">Status</span><span class="value"><span class="badge <?= booking_status_badge($booking['status']) ?>"><?= e(ucwords(str_replace('_',' ',$booking['status']))) ?></span></span></div>
+                <div class="r-row"><span class="r-k">Guest</span><span class="r-v"><?= e($booking['guest_name']) ?></span></div>
+                <div class="r-row"><span class="r-k">Phone</span><span class="r-v"><?= e($booking['guest_phone']) ?></span></div>
+                <?php if (!empty($booking['guest_email'])): ?>
+                <div class="r-row"><span class="r-k">Email</span><span class="r-v"><?= e($booking['guest_email']) ?></span></div>
+                <?php endif; ?>
 
-            <?php if ($booking['checkin_at']): ?>
-            <div class="section-label">Check-In</div>
-            <div class="info-line"><span class="label">Checked In</span><span class="value"><?= e(date('d M Y, h:i A', strtotime($booking['checkin_at']))) ?></span></div>
-            <?php endif; ?>
+                <hr class="r-divider">
 
-            <?php if ($booking['checkout_at']): ?>
-            <div class="section-label">Checkout</div>
-            <div class="info-line"><span class="label">Checked Out</span><span class="value"><?= e(date('d M Y, h:i A', strtotime($booking['checkout_at']))) ?></span></div>
-            <?php endif; ?>
+                <div class="r-row"><span class="r-k">Room</span><span class="r-v"><?= e($booking['room_number']) ?> (<?= e($booking['room_type_name']) ?>)</span></div>
+                <div class="r-row"><span class="r-k">From</span><span class="r-v"><?= e(date('d M Y', strtotime($booking['reserved_from']))) ?></span></div>
+                <div class="r-row"><span class="r-k">Until</span><span class="r-v"><?= e(date('d M Y', strtotime($booking['reserved_until']))) ?></span></div>
+                <div class="r-row"><span class="r-k">Nights</span><span class="r-v"><?= (int)$booking['reserved_nights'] ?></span></div>
+                <?php if ($booking['checkin_at']): ?>
+                <div class="r-row"><span class="r-k">Check-In</span><span class="r-v"><?= e(date('d M Y, h:i A', strtotime($booking['checkin_at']))) ?></span></div>
+                <?php endif; ?>
+                <?php if ($booking['checkout_at']): ?>
+                <div class="r-row"><span class="r-k">Checkout</span><span class="r-v"><?= e(date('d M Y, h:i A', strtotime($booking['checkout_at']))) ?></span></div>
+                <?php endif; ?>
 
-            <?php if (!empty($extensions)): ?>
-            <div class="section-label">Extended Stay History</div>
-            <table class="table table-sm mini-table mb-0">
-                <thead><tr><th>New Until</th><th>Nights</th><th class="text-end">Charge</th></tr></thead>
-                <tbody>
+                <div class="r-row r-item"><span class="r-item-name">Room Charge</span><span class="r-item-amt">৳<?= number_format($room_charge_total, 2) ?></span></div>
+
+                <?php if (!empty($extensions)): ?>
+                <div class="r-section-title">Extended Stay</div>
                 <?php foreach ($extensions as $ex): ?>
-                    <tr>
-                        <td><?= e(date('d M Y', strtotime($ex['new_reserved_until']))) ?></td>
-                        <td><?= (int)$ex['added_nights'] ?></td>
-                        <td class="text-end">৳<?= number_format((float)$ex['total_extended_charge'], 2) ?></td>
-                    </tr>
+                    <div class="r-item">
+                        <span class="r-item-name">Extension to <?= e(date('d M Y', strtotime($ex['new_reserved_until']))) ?>
+                            <span class="r-item-sub"><?= (int)$ex['added_nights'] ?> night(s)</span>
+                        </span>
+                        <span class="r-item-amt">৳<?= number_format((float)$ex['total_extended_charge'], 2) ?></span>
+                    </div>
                 <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
+                <?php endif; ?>
 
-            <div class="section-label">Complete Service History</div>
-            <?php if (empty($services)): ?>
-                <div class="text-muted small">No services added.</div>
-            <?php else: ?>
-                <table class="table table-sm mini-table mb-0">
-                    <thead><tr><th>Type</th><th class="text-end">Amount</th><th class="text-end">Discount</th><th class="text-end">Net</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($services as $s): ?>
-                        <tr>
-                            <td><?= e(ucfirst($s['service_type'])) ?></td>
-                            <td class="text-end">৳<?= number_format((float)$s['amount'], 2) ?></td>
-                            <td class="text-end">৳<?= number_format((float)$s['discount'], 2) ?></td>
-                            <td class="text-end">৳<?= number_format((float)$s['amount'] - (float)$s['discount'], 2) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                    <tfoot><tr class="fw-semibold"><td colspan="3">Total Services</td><td class="text-end">৳<?= number_format($service_total, 2) ?></td></tr></tfoot>
-                </table>
-            <?php endif; ?>
+                <?php if (!empty($services)): ?>
+                <div class="r-section-title">Services</div>
+                <?php foreach ($services as $s): ?>
+                    <div class="r-item">
+                        <span class="r-item-name">
+                            <?= e(ucfirst($s['service_type'])) ?>
+                            <?php if ((float)$s['discount'] > 0): ?>
+                            <span class="r-item-sub">৳<?= number_format((float)$s['amount'], 2) ?> − ৳<?= number_format((float)$s['discount'], 2) ?> disc.</span>
+                            <?php endif; ?>
+                        </span>
+                        <span class="r-item-amt">৳<?= number_format((float)$s['amount'] - (float)$s['discount'], 2) ?></span>
+                    </div>
+                <?php endforeach; ?>
+                <?php endif; ?>
 
-            <div class="section-label">Payment History</div>
-            <?php if (empty($payments)): ?>
-                <div class="text-muted small">No payments recorded yet.</div>
-            <?php else: ?>
-                <table class="table table-sm mini-table mb-0">
-                    <thead><tr><th>Type</th><th>Method</th><th class="text-end">Amount</th><th>Date</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($payments as $p): ?>
-                        <tr>
-                            <td><?= e(ucfirst($p['payment_type'])) ?></td>
-                            <td><?= e(ucfirst(str_replace('_',' ',$p['payment_method']))) ?></td>
-                            <td class="text-end">৳<?= number_format((float)$p['amount'], 2) ?></td>
-                            <td class="text-muted"><?= e(date('d M, h:i A', strtotime($p['created_at']))) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                    <tfoot><tr class="fw-semibold"><td colspan="2">Total Paid</td><td colspan="2" class="text-end">৳<?= number_format($payments_made, 2) ?></td></tr></tfoot>
-                </table>
-            <?php endif; ?>
+                <div class="r-totals">
+                    <?php if ($extension_charge_total > 0): ?>
+                    <div class="r-row"><span class="r-k">Extension Total</span><span class="r-v">৳<?= number_format($extension_charge_total, 2) ?></span></div>
+                    <?php endif; ?>
+                    <?php if ($service_total > 0): ?>
+                    <div class="r-row"><span class="r-k">Service Total</span><span class="r-v">৳<?= number_format($service_total, 2) ?></span></div>
+                    <?php endif; ?>
+                    <?php if ($discount > 0): ?>
+                    <div class="r-row"><span class="r-k">Discount</span><span class="r-v">− ৳<?= number_format($discount, 2) ?></span></div>
+                    <?php endif; ?>
+                    <?php if ($tax > 0): ?>
+                    <div class="r-row"><span class="r-k">Tax</span><span class="r-v">৳<?= number_format($tax, 2) ?></span></div>
+                    <?php endif; ?>
+                    <div class="r-grand"><span>Grand Total</span><span>৳<?= number_format($grand_total, 2) ?></span></div>
+                    <div class="r-paid-row"><span>Total Paid</span><span>৳<?= number_format($payments_made, 2) ?></span></div>
+                    <div class="r-due-row" style="color: <?= $balance_due > 0 ? '#b3261e' : '#0f5132' ?>;">
+                        <span>Balance Due</span><span>৳<?= number_format($balance_due, 2) ?></span>
+                    </div>
+                </div>
+
+                <?php if (!empty($payments)): ?>
+                <div class="r-section-title">Payment History</div>
+                <?php foreach ($payments as $p): ?>
+                    <div class="r-item">
+                        <span class="r-item-name">
+                            <?= e(ucfirst($p['payment_type'])) ?> · <?= e(ucfirst(str_replace('_',' ',$p['payment_method']))) ?>
+                            <span class="r-item-sub"><?= e(date('d M, h:i A', strtotime($p['created_at']))) ?></span>
+                        </span>
+                        <span class="r-item-amt">৳<?= number_format((float)$p['amount'], 2) ?></span>
+                    </div>
+                <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if ($wifi_qr_string): ?>
+                <div class="screen-wifi">
+                    <img id="screenWifiQr" alt="Wi-Fi QR Code" width="110" height="110">
+                    <div>Scan to connect to Wi-Fi</div>
+                    <?php if ($wifi_name): ?><div class="wifi-name">Wi-Fi: <?= e($wifi_name) ?></div><?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <div class="r-footer">
+                    <div class="r-thanks">Thank you for staying with us!</div>
+                    <?php if ($wifi_name): ?>
+                    <div>Wi-Fi: <?= e($wifi_name) ?></div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- RIGHT: financial summary + actions -->
     <div class="col-lg-5">
         <div class="pos-panel">
             <h6><i class="bi bi-cash-stack me-1"></i>Financial Summary</h6>
@@ -302,14 +389,14 @@ require __DIR__ . '/navbar.php';
     <?php if (!empty($payments)): ?>
     <div class="print-section-title">Payment History</div>
     <table class="print-table">
-        <thead><tr><th>Type</th><th>Method</th><th class="text-end">Amount</th><th>Date</th></tr></thead>
+        <thead><tr><th>Date &amp; Time</th><th>Payment Type</th><th>Payment Method</th><th class="text-end">Amount</th></tr></thead>
         <tbody>
         <?php foreach ($payments as $p): ?>
             <tr>
-                <td><?= e(ucfirst($p['payment_type'])) ?></td>
-                <td><?= e(ucfirst(str_replace('_',' ',$p['payment_method']))) ?></td>
-                <td class="text-end">৳<?= number_format((float)$p['amount'], 2) ?></td>
                 <td><?= e(date('d M, h:i A', strtotime($p['created_at']))) ?></td>
+                <td><?= e(ucfirst(str_replace('_',' ',$p['payment_type']))) ?></td>
+                <td><?= e(ucfirst(str_replace('_',' ',$p['payment_method']))) ?></td>
+                <td class="text-end"><strong>৳<?= number_format((float)$p['amount'], 2) ?></strong></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
@@ -348,11 +435,12 @@ require __DIR__ . '/navbar.php';
 <script>
 <?php if ($wifi_qr_string): ?>
 (function() {
-    var qrImg = document.getElementById('printWifiQr');
     var qrData = <?= json_encode($wifi_qr_string) ?>;
-    // Using a QR image API (no external JS lib / canvas dependency, so it
-    // reliably renders even inside a display:none receipt block until print time).
-    qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=' + encodeURIComponent(qrData);
+    var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=' + encodeURIComponent(qrData);
+    var printQr = document.getElementById('printWifiQr');
+    var screenQr = document.getElementById('screenWifiQr');
+    if (printQr) printQr.src = qrUrl;
+    if (screenQr) screenQr.src = qrUrl;
 })();
 <?php endif; ?>
 

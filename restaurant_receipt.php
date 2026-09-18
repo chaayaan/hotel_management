@@ -78,55 +78,117 @@ require __DIR__ . '/navbar.php';
     .print-totals .grand { font-size: 1.2rem; font-weight: 800; color: #0f5132; border-top: 1px solid #ccc; margin-top: 6px; padding-top: 8px; }
     .print-due-note { background: #fff3cd; color: #664d03; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 10px; text-align: center; font-weight: 700; }
     .print-paid-note { background: #d1f5e0; color: #0f5132; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 10px; text-align: center; font-weight: 700; }
+
+    /* On-screen POS-style receipt */
+    .receipt-wrap { display:flex; justify-content:center; }
+    .receipt-slip {
+        width:100%; max-width:420px; background:#fff; border:1px solid #e2e5e3;
+        border-radius:6px; box-shadow:0 2px 10px rgba(20,40,30,.06);
+        padding:20px 18px 16px; font-family:'Courier New', Courier, monospace; color:#1e2b23;
+    }
+    .receipt-slip .r-header { text-align:center; border-bottom:2px dashed #d7dbd8; padding-bottom:12px; margin-bottom:12px; }
+    .receipt-slip .r-header .r-name { font-weight:800; font-size:1.05rem; color:#0f5132; letter-spacing:.02em; }
+    .receipt-slip .r-header .r-sub { font-size:.72rem; color:#6c776f; margin-top:2px; line-height:1.4; }
+    .receipt-slip .r-header .r-invoice { font-size:.7rem; color:#8a938e; margin-top:6px; }
+    .receipt-slip .r-status-chip { display:block; text-align:center; font-size:.68rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:3px 0; margin-bottom:10px; border-radius:4px; background:#eef2f0; color:#1c3d2e; }
+    .receipt-slip .r-row { display:flex; justify-content:space-between; font-size:.78rem; padding:2px 0; gap:10px; }
+    .receipt-slip .r-row .r-k { color:#6c776f; }
+    .receipt-slip .r-row .r-v { font-weight:600; text-align:right; }
+    .receipt-slip .r-divider { border:none; border-top:1px dashed #d7dbd8; margin:10px 0; }
+    .receipt-slip .r-section-title { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:#6c776f; font-weight:700; margin:10px 0 4px; }
+    .receipt-slip .r-item { display:flex; justify-content:space-between; align-items:baseline; font-size:.78rem; padding:3px 0; gap:8px; }
+    .receipt-slip .r-item .r-item-name { flex:1 1 auto; }
+    .receipt-slip .r-item .r-item-sub { display:block; font-size:.68rem; color:#9aa39d; }
+    .receipt-slip .r-item .r-item-amt { flex:0 0 auto; font-weight:600; white-space:nowrap; }
+    .receipt-slip .r-totals { border-top:2px dashed #d7dbd8; margin-top:12px; padding-top:10px; }
+    .receipt-slip .r-totals .r-row { font-size:.8rem; }
+    .receipt-slip .r-totals .r-grand { display:flex; justify-content:space-between; font-size:1.05rem; font-weight:800; color:#0f5132; border-top:1px solid #d7dbd8; margin-top:6px; padding-top:8px; }
+    .receipt-slip .r-totals .r-paid-row { font-size:.78rem; color:#6c776f; padding:2px 0; display:flex; justify-content:space-between; }
+    .receipt-slip .r-totals .r-due-row { display:flex; justify-content:space-between; font-size:.85rem; font-weight:700; margin-top:4px; padding-top:4px; border-top:1px dashed #d7dbd8; }
+    .receipt-slip .r-payment-head, .receipt-slip .r-payment-row { display:grid; grid-template-columns:1.15fr 1fr 1fr .85fr; gap:8px; align-items:center; }
+    .receipt-slip .r-payment-head { padding:7px 0; color:#8a938e; font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.025em; border-bottom:1px solid #e8ebe9; }
+    .receipt-slip .r-payment-row { padding:8px 0; font-size:.7rem; color:#4f5a54; border-bottom:1px dashed #e5e8e6; }
+    .receipt-slip .r-payment-row strong { color:#0f5132; white-space:nowrap; }
+    .receipt-slip .r-footer { text-align:center; font-size:.7rem; color:#9aa39d; margin-top:14px; border-top:2px dashed #d7dbd8; padding-top:10px; }
+    .receipt-slip .r-footer .r-thanks { font-weight:700; color:#1c3d2e; font-size:.78rem; margin-bottom:2px; }
+
+    @media (max-width: 991.98px) {
+        .receipt-slip { max-width:100%; }
+    }
 </style>
 
 
 
 <div class="row g-3">
+    <!-- LEFT: on-screen POS-style receipt -->
     <div class="col-lg-7">
-        <div class="pos-panel">
-            <h6><i class="bi bi-receipt me-1"></i>Order Details</h6>
+        <div class="receipt-wrap">
+            <div class="receipt-slip">
+                <div class="r-header">
+                    <div class="r-name"><?= e($resort_name) ?></div>
+                    <div class="r-sub">Restaurant</div>
+                    <?php if ($resort_address): ?><div class="r-sub"><?= e($resort_address) ?></div><?php endif; ?>
+                    <?php if ($resort_phone || $resort_website): ?>
+                    <div class="r-sub"><?= e($resort_phone) ?><?= ($resort_phone && $resort_website) ? ' · ' : '' ?><?= e($resort_website) ?></div>
+                    <?php endif; ?>
+                    <div class="r-invoice">Order: <?= e($order['order_no']) ?><br><?= e(date('d M Y, h:i A')) ?></div>
+                </div>
 
-            <div class="section-label">Order Information</div>
-            <div class="info-line"><span class="label">Order No</span><span class="value"><?= e($order['order_no']) ?></span></div>
-            <div class="info-line"><span class="label">Table</span><span class="value"><?= e($order['table_no']) ?> (<?= e($order['table_type']) ?>)</span></div>
-            <div class="info-line"><span class="label">Floor</span><span class="value"><?= e($order['floor'] ?: '—') ?></span></div>
-            <div class="info-line"><span class="label">Order Time</span><span class="value"><?= e(date('d M Y, h:i A', strtotime($order['order_datetime']))) ?></span></div>
-            <div class="info-line"><span class="label">Status</span><span class="value"><span class="badge <?= order_status_badge($order['status']) ?>"><?= e(ucfirst($order['status'])) ?></span></span></div>
+                <span class="r-status-chip"><?= e(ucwords(str_replace('_',' ',$order['status']))) ?></span>
 
-            <div class="section-label">Items</div>
-            <table class="table table-sm mini-table mb-0">
-                <thead><tr><th>Item</th><th>Qty</th><th class="text-end">Price</th><th class="text-end">Total</th></tr></thead>
-                <tbody>
+                <div class="r-row"><span class="r-k">Table</span><span class="r-v"><?= e($order['table_no']) ?> (<?= e($order['table_type']) ?>)</span></div>
+                <div class="r-row"><span class="r-k">Floor</span><span class="r-v"><?= e($order['floor'] ?: '—') ?></span></div>
+                <div class="r-row"><span class="r-k">Order Time</span><span class="r-v"><?= e(date('d M Y, h:i A', strtotime($order['order_datetime']))) ?></span></div>
+                <div class="r-row"><span class="r-k">Cashier</span><span class="r-v"><?= e($cashier_name) ?></span></div>
+
+                <hr class="r-divider">
+
+                <div class="r-section-title">Items</div>
                 <?php foreach ($items as $it): ?>
-                    <tr>
-                        <td><?= e($it['item_name']) ?><?= $it['size'] ? ' <span class="text-muted small">(' . e($it['size']) . ')</span>' : '' ?></td>
-                        <td><?= (int)$it['qty'] ?></td>
-                        <td class="text-end">৳<?= number_format((float)$it['price'], 2) ?></td>
-                        <td class="text-end">৳<?= number_format((float)$it['total'], 2) ?></td>
-                    </tr>
+                    <div class="r-item">
+                        <span class="r-item-name">
+                            <?= e($it['item_name']) ?>
+                            <?php if ($it['size']): ?><span class="r-item-sub"><?= e($it['size']) ?> × <?= (int)$it['qty'] ?> @ ৳<?= number_format((float)$it['price'], 2) ?></span>
+                            <?php else: ?><span class="r-item-sub">Qty: <?= (int)$it['qty'] ?> @ ৳<?= number_format((float)$it['price'], 2) ?></span><?php endif; ?>
+                        </span>
+                        <span class="r-item-amt">৳<?= number_format((float)$it['total'], 2) ?></span>
+                    </div>
                 <?php endforeach; ?>
-                </tbody>
-            </table>
 
-            <div class="section-label">Payment History</div>
-            <?php if (empty($payments)): ?>
-                <div class="text-muted small">No payments recorded yet.</div>
-            <?php else: ?>
-                <table class="table table-sm mini-table mb-0">
-                    <thead><tr><th>Type</th><th>Method</th><th class="text-end">Amount</th><th>Date</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($payments as $p): ?>
-                        <tr>
-                            <td><?= e(ucfirst(str_replace('_',' ',$p['payment_type']))) ?></td>
-                            <td><?= e(ucfirst(str_replace('_',' ',$p['payment_method']))) ?></td>
-                            <td class="text-end">৳<?= number_format((float)$p['amount'], 2) ?></td>
-                            <td class="text-muted"><?= e(date('d M, h:i A', strtotime($p['paid_at']))) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
+                <div class="r-totals">
+                    <div class="r-row"><span class="r-k">Subtotal</span><span class="r-v">৳<?= number_format((float)$order['subtotal'], 2) ?></span></div>
+                    <?php if ((float)$order['tax'] > 0): ?>
+                    <div class="r-row"><span class="r-k">Tax</span><span class="r-v">৳<?= number_format((float)$order['tax'], 2) ?></span></div>
+                    <?php endif; ?>
+                    <?php if ((float)$order['discount'] > 0): ?>
+                    <div class="r-row"><span class="r-k">Discount</span><span class="r-v">− ৳<?= number_format((float)$order['discount'], 2) ?></span></div>
+                    <?php endif; ?>
+                    <div class="r-grand"><span>Grand Total</span><span>৳<?= number_format((float)$order['total_amount'], 2) ?></span></div>
+                    <div class="r-paid-row"><span>Total Paid</span><span>৳<?= number_format($total_paid, 2) ?></span></div>
+                    <div class="r-due-row" style="color: <?= $due > 0 ? '#b3261e' : '#0f5132' ?>;">
+                        <span>Due</span><span>৳<?= number_format($due, 2) ?></span>
+                    </div>
+                </div>
+
+                <?php if (!empty($payments)): ?>
+                <div class="r-section-title">Payment History</div>
+                <div class="r-payment-head">
+                    <span>Date &amp; Time</span><span>Payment Type</span><span>Payment Method</span><span class="text-end">Amount</span>
+                </div>
+                <?php foreach ($payments as $p): ?>
+                    <div class="r-payment-row">
+                        <span><?= e(date('d M, h:i A', strtotime($p['paid_at']))) ?></span>
+                        <span><?= e(ucfirst(str_replace('_',' ',$p['payment_type']))) ?></span>
+                        <span><?= e(ucfirst(str_replace('_',' ',$p['payment_method']))) ?></span>
+                        <strong class="text-end">৳ <?= number_format((float)$p['amount'], 2) ?></strong>
+                    </div>
+                <?php endforeach; ?>
+                <?php endif; ?>
+
+                <div class="r-footer">
+                    <div class="r-thanks">Thank you for visiting us!</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -169,6 +231,7 @@ require __DIR__ . '/navbar.php';
                     <a href="restaurant_payment.php?order_id=<?= $order_id ?>" class="btn btn-brand btn-sm"><i class="bi bi-cash-coin me-1"></i>Payment</a>
                 <?php endif; ?>
                 <button class="btn btn-outline-brand btn-sm" onclick="printReceipt('pos')"><i class="bi bi-printer me-1"></i>Print POS</button>
+                <button class="btn btn-brand btn-sm" onclick="printReceipt('a4')"><i class="bi bi-file-earmark-text me-1"></i>Print A4</button>
             </div>
         </div>
     </div>
