@@ -38,6 +38,36 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'check_availability') {
     exit;
 }
 
+// ---------- Handle AJAX: booked date ranges for a room (for the calendar picker) ----------
+// Purely additive read endpoint for the new calendar UI. Does not touch or replace
+// is_room_available()/check_availability, which remain the source of truth on submit.
+// Returns every date range currently occupying the room (status 'reserved' or 'checked_in')
+// so the calendar can mark those dates red and block them from selection.
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'room_booked_dates') {
+    header('Content-Type: application/json');
+    $room_id = (int)($_GET['room_id'] ?? 0);
+    $out = [];
+    if ($room_id) {
+        $stmt = mysqli_prepare($conn, "SELECT reserved_from, reserved_until, status, reservation_no
+                                        FROM hotel_bookings
+                                        WHERE room_id = ? AND status IN ('reserved','checked_in')
+                                        ORDER BY reserved_from ASC");
+        mysqli_stmt_bind_param($stmt, 'i', $room_id);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        while ($row = mysqli_fetch_assoc($res)) {
+            $out[] = [
+                'from' => $row['reserved_from'],
+                'until' => $row['reserved_until'],
+                'status' => $row['status'],
+                'reservation_no' => $row['reservation_no'],
+            ];
+        }
+    }
+    echo json_encode($out);
+    exit;
+}
+
 // ---------- Handle POST: create reservation ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_reservation') {
     if (!csrf_verify($_POST['csrf_token'] ?? '')) {
@@ -186,6 +216,94 @@ require __DIR__ . '/navbar.php';
         display: flex; align-items: center; justify-content: center;
         font-size: 1rem; flex-shrink: 0;
     }
+
+    /* ---------- Simple bold-label field style (image-matched) ---------- */
+    .simple-field-label {
+        font-size: 1.05rem; font-weight: 700; color: #14251c; margin-bottom: 8px; display: block;
+    }
+    .simple-field-input.form-control,
+    .simple-field-input.form-select {
+        border-radius: 22px; border: 1px solid #cfd5d1; padding: 10px 16px; font-size: 0.9rem;
+    }
+    .simple-field-input.form-control:focus,
+    .simple-field-input.form-select:focus {
+        border-color: #0f5132; box-shadow: 0 0 0 3px rgba(15,81,50,0.08);
+    }
+
+    /* ---------- Calendar date picker (image-matched layout) ---------- */
+    .rescal-label { font-weight: 700; font-size: 0.85rem; color: #1c3d2e; margin-bottom: 8px; display: block; }
+
+    .rescal-card {
+        border: 1px solid #dfe3e1; border-radius: 10px; background: #fff;
+        padding: 10px 12px 12px;
+    }
+    .rescal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .rescal-month-label {
+        flex: 1 1 auto; text-align: center; font-weight: 700; font-size: 0.85rem; color: #1c3d2e;
+    }
+    .rescal-nav-btn {
+        width: 24px; height: 24px; border: none; background: transparent; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center; color: #6c776f;
+        cursor: pointer; transition: background .12s ease, color .12s ease; flex-shrink: 0;
+    }
+    .rescal-nav-btn:hover { background: #f0f2f1; color: #1c3d2e; }
+    .rescal-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .rescal-nav-btn:disabled:hover { background: transparent; color: #6c776f; }
+
+    .rescal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 2px; }
+    .rescal-weekdays span { text-align: center; font-size: 0.62rem; font-weight: 700; color: #9aa39d; padding: 2px 0; }
+
+    .rescal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .rescal-day {
+        position: relative; height: 30px; display: flex; align-items: center; justify-content: center;
+        font-size: 0.75rem; font-weight: 600; color: #2b3a33; border-radius: 6px;
+        cursor: pointer; user-select: none; background: #f7f8f7; transition: background .1s ease, color .1s ease;
+    }
+    .rescal-day.rescal-empty { visibility: hidden; cursor: default; }
+    .rescal-day:not(.rescal-disabled):hover { background: #dcecdf; }
+
+    .rescal-day.rescal-today { box-shadow: inset 0 0 0 1.5px #0f5132; }
+
+    .rescal-day.rescal-past, .rescal-day.rescal-blocked { color: #c9cfcb; background: #f4f5f4; cursor: not-allowed; }
+    .rescal-day.rescal-past:hover, .rescal-day.rescal-blocked:hover { background: #f4f5f4; }
+
+    .rescal-day.rescal-available { background: #c7ecd0; color: #1c5c33; }
+    .rescal-day.rescal-available:hover { background: #b3e3bf; }
+
+    .rescal-day.rescal-booked { background: #f6b9b4; color: #7d241a; cursor: not-allowed; }
+    .rescal-day.rescal-booked:hover { background: #f6b9b4; }
+    .rescal-day.rescal-booked:not(.rescal-disabled) { cursor: pointer; }
+    .rescal-day.rescal-booked:not(.rescal-disabled):hover { background: #f2a29c; }
+
+    .rescal-day.rescal-selected { background: #0f5132; color: #fff; }
+    .rescal-day.rescal-selected:hover { background: #0f5132; }
+
+    .rescal-day.rescal-in-range { background: #0f5132; color: #fff; }
+    .rescal-day.rescal-in-range:hover { background: #0f5132; }
+
+    .rescal-summary {
+        border: 1px solid #e6e9e7; border-radius: 8px; background: #fafbfa;
+        padding: 6px 10px; display: flex; align-items: center; gap: 6px;
+        font-size: 0.76rem; color: #6c776f; margin-top: 8px;
+    }
+    .rescal-summary i { color: #6c776f; font-size: 0.8rem; }
+    .rescal-summary .rc-value { font-weight: 700; color: #1c3d2e; }
+    .rescal-summary .rc-warn { color: #b3261e; font-weight: 700; }
+
+    .rescal-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .rescal-legend { display: flex; gap: 10px; font-size: 0.64rem; color: #6c776f; flex-wrap: wrap; }
+    .rescal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+    .rescal-legend i { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+    .rescal-legend .lg-available { background: #c7ecd0; }
+    .rescal-legend .lg-booked { background: #f6b9b4; }
+    .rescal-legend .lg-selected { background: #0f5132; }
+    .rescal-clear-btn {
+        border: none; background: none; font-size: 0.68rem; font-weight: 700;
+        color: #6c776f; cursor: pointer; padding: 1px 3px;
+    }
+    .rescal-clear-btn:hover { color: #b3261e; }
+
+    .rescal-hint { font-size: 0.68rem; color: #9aa39d; text-align: center; padding: 6px 0 0; }
 </style>
 
 <?php if (!empty($errors)): ?>
@@ -315,41 +433,66 @@ require __DIR__ . '/navbar.php';
 
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Room <span class="text-danger">*</span></label>
-                    <select name="room_id" id="room_id" class="form-select" required onchange="onRoomChange()">
-                        <option value="">-- Select Room --</option>
-                        <?php foreach ($rooms_arr as $r): ?>
-                            <option value="<?= (int)$r['id'] ?>"
-                                data-price="<?= (float)$r['price_per_day'] ?>"
-                                data-type="<?= e($r['type_name']) ?>"
-                                data-number="<?= e($r['room_number']) ?>"
-                                <?= $preselect_room_id === (int)$r['id'] ? 'selected' : '' ?>>
-                                <?= e($r['room_number']) ?> — <?= e($r['type_name']) ?> (৳<?= number_format((float)$r['price_per_day'],0) ?>/night)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-semibold">Adults</label>
-                    <input type="number" name="adults" id="adults" class="form-control" value="1" min="1" onchange="updateSummary()">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-semibold">Children</label>
-                    <input type="number" name="children" id="children" class="form-control" value="0" min="0" onchange="updateSummary()">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="simple-field-label">Room</label>
+                            <select name="room_id" id="room_id" class="form-select simple-field-input" required onchange="onRoomChange()">
+                                <option value="">-- Select Room --</option>
+                                <?php foreach ($rooms_arr as $r): ?>
+                                    <option value="<?= (int)$r['id'] ?>"
+                                        data-price="<?= (float)$r['price_per_day'] ?>"
+                                        data-type="<?= e($r['type_name']) ?>"
+                                        data-number="<?= e($r['room_number']) ?>"
+                                        <?= $preselect_room_id === (int)$r['id'] ? 'selected' : '' ?>>
+                                        <?= e($r['room_number']) ?> — <?= e($r['type_name']) ?> (৳<?= number_format((float)$r['price_per_day'],0) ?>/night)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="simple-field-label">Adults</label>
+                            <input type="number" name="adults" id="adults" class="form-control simple-field-input" value="1" min="1" onchange="updateSummary()">
+                        </div>
+                        <div class="col-12">
+                            <label class="simple-field-label">Children</label>
+                            <input type="number" name="children" id="children" class="form-control simple-field-input" value="0" min="0" onchange="updateSummary()">
+                        </div>
+                        <div class="col-12">
+                            <label class="simple-field-label">Notes</label>
+                            <textarea name="notes" class="form-control simple-field-input" rows="1" maxlength="255"></textarea>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Reserved From <span class="text-danger">*</span></label>
-                    <input type="date" name="reserved_from" id="reserved_from" class="form-control" required min="<?= date('Y-m-d') ?>" onchange="onDatesChange()">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Reserved Until <span class="text-danger">*</span></label>
-                    <input type="date" name="reserved_until" id="reserved_until" class="form-control" required min="<?= date('Y-m-d', strtotime('+1 day')) ?>" onchange="onDatesChange()">
-                </div>
+                    <label class="rescal-label">Select Reservation Date <span class="text-danger">*</span></label>
+                    <input type="hidden" name="reserved_from" id="reserved_from">
+                    <input type="hidden" name="reserved_until" id="reserved_until">
 
-                <div class="col-12">
-                    <label class="form-label small fw-semibold">Notes</label>
-                    <textarea name="notes" class="form-control" rows="2" maxlength="255"></textarea>
+                    <div class="rescal-card">
+                        <div class="rescal-header">
+                            <button type="button" class="rescal-nav-btn" id="calPrev"><i class="bi bi-chevron-left"></i></button>
+                            <span class="rescal-month-label" id="calMonthLabel"></span>
+                            <button type="button" class="rescal-nav-btn" id="calNext"><i class="bi bi-chevron-right"></i></button>
+                        </div>
+                        <div class="rescal-weekdays">
+                            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                        </div>
+                        <div class="rescal-grid" id="calGrid"></div>
+                        <div class="rescal-footer">
+                            <div class="rescal-legend">
+                                <span><i class="lg-available"></i>Available</span>
+                                <span><i class="lg-booked"></i>Reserved</span>
+                                <span><i class="lg-selected"></i>Selected</span>
+                            </div>
+                            <button type="button" class="rescal-clear-btn" id="calClear">Clear</button>
+                        </div>
+                    </div>
+                    <div class="rescal-summary">
+                        <i class="bi bi-calendar3"></i>
+                        <span id="calSummaryText">Select stay dates</span>
+                    </div>
+                    <div class="rescal-hint" id="calSideNote">Select a room to see availability.</div>
                 </div>
             </div>
 
@@ -477,6 +620,265 @@ document.getElementById('newGuestBtn').addEventListener('click', () => {
     validateForm();
 });
 
+/* ============================================================
+   Month calendar date-range picker (additive — does not modify
+   calcTotal/checkAvailability/updateSummary/validateForm/
+   onDatesChange/formatDisplayDate, which stay exactly as before).
+   ============================================================ */
+const cal = {
+    grid: document.getElementById('calGrid'),
+    monthLabel: document.getElementById('calMonthLabel'),
+    prevBtn: document.getElementById('calPrev'),
+    nextBtn: document.getElementById('calNext'),
+    clearBtn: document.getElementById('calClear'),
+    summaryText: document.getElementById('calSummaryText'),
+    sideNote: document.getElementById('calSideNote'),
+    fromInput: document.getElementById('reserved_from'),
+    untilInput: document.getElementById('reserved_until'),
+
+    viewYear: 0,
+    viewMonth: 0, // 0-11
+    todayStr: '',
+    roomSelected: false,
+    bookedSet: new Set(),   // 'YYYY-MM-DD' strings occupied by the current room's bookings
+    selFrom: null,
+    selUntil: null,
+    pickingFrom: true,
+    warnTimeout: null,
+};
+
+function calPad(n) { return n < 10 ? '0' + n : '' + n; }
+function calFmt(y, m, d) { return `${y}-${calPad(m + 1)}-${calPad(d)}`; }
+function calToday() { const t = new Date(); return calFmt(t.getFullYear(), t.getMonth(), t.getDate()); }
+function calMonthName(m) {
+    return ['January','February','March','April','May','June','July','August','September','October','November','December'][m];
+}
+
+function calInit() {
+    const t = new Date();
+    cal.viewYear = t.getFullYear();
+    cal.viewMonth = t.getMonth();
+    cal.todayStr = calToday();
+
+    cal.prevBtn.addEventListener('click', () => calChangeMonth(-1));
+    cal.nextBtn.addEventListener('click', () => calChangeMonth(1));
+    cal.clearBtn.addEventListener('click', () => calClearSelection());
+
+    calRenderSideNote();
+    calRender();
+}
+
+function calChangeMonth(delta) {
+    cal.viewMonth += delta;
+    if (cal.viewMonth < 0) { cal.viewMonth = 11; cal.viewYear--; }
+    if (cal.viewMonth > 11) { cal.viewMonth = 0; cal.viewYear++; }
+    calRender();
+}
+
+// Rebuild the set of booked (unavailable) date strings from the fetched ranges.
+// A stay occupies nights from `from` up to (but not including) `until`.
+function calRebuildBookedSet(ranges) {
+    cal.bookedSet = new Set();
+    (ranges || []).forEach(r => {
+        let cur = new Date(r.from + 'T00:00:00');
+        const end = new Date(r.until + 'T00:00:00');
+        while (cur < end) {
+            cal.bookedSet.add(calFmt(cur.getFullYear(), cur.getMonth(), cur.getDate()));
+            cur.setDate(cur.getDate() + 1);
+        }
+    });
+}
+
+// Does the half-open range [fromStr, toStrExclusive) overlap any booked date?
+// This is the key corner-case check: two clicks can each land on free days while
+// the stretch between them still crosses a reserved/checked-in date.
+function calRangeHasConflict(fromStr, toStrExclusive) {
+    let cur = new Date(fromStr + 'T00:00:00');
+    const end = new Date(toStrExclusive + 'T00:00:00');
+    while (cur < end) {
+        if (cal.bookedSet.has(calFmt(cur.getFullYear(), cur.getMonth(), cur.getDate()))) return true;
+        cur.setDate(cur.getDate() + 1);
+    }
+    return false;
+}
+
+// Calendar's Mon-first week layout (image uses M T W T F S S), so convert JS's
+// Sunday-first getDay() (0=Sun..6=Sat) into a Monday-first column index (0=Mon..6=Sun).
+function calMonFirstCol(jsDay) { return (jsDay + 6) % 7; }
+
+function calRender() {
+    cal.monthLabel.innerText = calMonthName(cal.viewMonth) + ' ' + cal.viewYear;
+
+    const now = new Date();
+    cal.prevBtn.disabled = (cal.viewYear === now.getFullYear() && cal.viewMonth === now.getMonth());
+
+    cal.grid.innerHTML = '';
+    const firstDay = calMonFirstCol(new Date(cal.viewYear, cal.viewMonth, 1).getDay());
+    const daysInMonth = new Date(cal.viewYear, cal.viewMonth + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'rescal-day rescal-empty';
+        cal.grid.appendChild(empty);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = calFmt(cal.viewYear, cal.viewMonth, d);
+        const dayEl = document.createElement('div');
+        dayEl.className = 'rescal-day';
+        dayEl.innerText = d;
+
+        const isPast = dateStr < cal.todayStr;
+        const isToday = dateStr === cal.todayStr;
+        const isBooked = cal.bookedSet.has(dateStr);
+        const isBlocked = isPast || !cal.roomSelected;
+        const isSelected = (dateStr === cal.selFrom) || (dateStr === cal.selUntil);
+        const inRange = cal.selFrom && cal.selUntil && dateStr > cal.selFrom && dateStr < cal.selUntil;
+
+        // A date that is itself booked (occupied for the night of that date) can still be
+        // picked as the "until" (checkout) end of a new stay, since checkout day itself isn't
+        // an occupied night — e.g. an existing 19→20 Sep reservation leaves 20 Sep free to be
+        // used as someone else's check-in, and also leaves 19 Sep pickable as an "until" for a
+        // stay that starts earlier (18→19 Sep), because that stay's only night is the 18th.
+        // It can never be picked as a "from" (check-in) date, since that night is occupied.
+        const isPickingUntilNow = !!cal.selFrom && dateStr > cal.selFrom;
+        const canClickDespiteBooked = isBooked && isPickingUntilNow;
+
+        if (isToday) dayEl.classList.add('rescal-today');
+        if (isPast) dayEl.classList.add('rescal-past');
+        else if (!cal.roomSelected) dayEl.classList.add('rescal-blocked');
+        else if (isBooked) dayEl.classList.add('rescal-booked');
+        else dayEl.classList.add('rescal-available');
+
+        if ((isBlocked || isBooked) && !canClickDespiteBooked) dayEl.classList.add('rescal-disabled');
+        if (isSelected) dayEl.classList.add('rescal-selected');
+        else if (inRange) dayEl.classList.add('rescal-in-range');
+
+        // Booked days are still clickable when they're a valid "until" target (see
+        // canClickDespiteBooked above); calHandleDayClick() re-validates the full range
+        // regardless, via calRangeHasConflict(), so a booked date can never end up inside
+        // the middle of a selected range — only usable as the exact checkout boundary.
+        if (!isBlocked && (!isBooked || canClickDespiteBooked)) {
+            dayEl.addEventListener('click', () => calHandleDayClick(dateStr));
+        }
+
+        cal.grid.appendChild(dayEl);
+    }
+}
+
+function calHandleDayClick(dateStr) {
+    // Anchor-and-extend selection: after the first click, the range only ever grows.
+    // A click before the current start pulls 'from' back to it; a click after the current
+    // start (whether or not 'until' is already set) pushes 'until' out to it. Clicking the
+    // exact start date again restarts a fresh selection. A conflicting range shows a warning
+    // and restarts the selection from the clicked date instead of silently clamping it.
+    if (!cal.selFrom) {
+        // First click of a fresh selection.
+        if (cal.bookedSet.has(dateStr)) {
+            calShowWarning('That date is already reserved — pick another check-in date.');
+            return;
+        }
+        cal.selFrom = dateStr;
+        cal.selUntil = null;
+    } else if (dateStr === cal.selFrom) {
+        // Clicked the current start again — restart the range from here.
+        cal.selUntil = null;
+    } else if (dateStr < cal.selFrom) {
+        // Extend the start backward to this date.
+        if (cal.bookedSet.has(dateStr)) {
+            calShowWarning('That date is already reserved — pick another check-in date.');
+            return;
+        }
+        const newUntil = cal.selUntil || cal.selFrom;
+        if (calRangeHasConflict(dateStr, newUntil)) {
+            cal.selFrom = dateStr;
+            cal.selUntil = null;
+            calShowWarning('That range includes reserved dates — pick a new range.');
+            return;
+        }
+        cal.selFrom = dateStr;
+        cal.selUntil = newUntil;
+    } else if (calRangeHasConflict(cal.selFrom, dateStr)) {
+        // The requested stay would pass through an already-booked night strictly between
+        // the range start and this click (calRangeHasConflict checks [selFrom, dateStr), so
+        // dateStr itself — used here purely as a checkout boundary — is correctly excluded).
+        // Reject this as the "until" date, restart the range from the clicked date instead,
+        // and surface a brief inline warning rather than silently clamping the range.
+        cal.selFrom = dateStr;
+        cal.selUntil = null;
+        calShowWarning('That range includes reserved dates — pick a new range.');
+    } else {
+        // Extend the end forward to this date: either a free date, or a booked date used
+        // purely as a checkout boundary (e.g. checking out the same day another stay ends).
+        cal.selUntil = dateStr;
+    }
+    calApplySelection();
+    calRender();
+}
+
+function calClearSelection() {
+    cal.selFrom = null;
+    cal.selUntil = null;
+    cal.pickingFrom = true;
+    calApplySelection();
+    calRender();
+}
+
+function calShowWarning(msg) {
+    clearTimeout(cal.warnTimeout);
+    cal.summaryText.innerHTML = `<span class="rc-warn"><i class="bi bi-exclamation-triangle me-1"></i>${msg}</span>`;
+    cal.warnTimeout = setTimeout(() => calApplySelection(), 3000);
+}
+
+function calApplySelection() {
+    cal.fromInput.value = cal.selFrom || '';
+    cal.untilInput.value = cal.selUntil || '';
+
+    if (cal.selFrom && cal.selUntil) {
+        cal.summaryText.innerHTML = `<span class="rc-value">${formatDisplayDate(cal.selFrom)}</span> &rarr; <span class="rc-value">${formatDisplayDate(cal.selUntil)}</span>`;
+    } else if (cal.selFrom) {
+        cal.summaryText.innerHTML = `<span class="rc-value">${formatDisplayDate(cal.selFrom)}</span> &rarr; select until date`;
+    } else {
+        cal.summaryText.innerText = 'Select stay dates';
+    }
+
+    // Reuses the existing onDatesChange() hook untouched — it still drives
+    // calcTotal(), checkAvailability(), and updateSummary() exactly as before.
+    onDatesChange();
+}
+
+function calRenderSideNote() {
+    cal.sideNote.style.display = cal.roomSelected ? 'none' : 'block';
+}
+
+// Fetch the booked date ranges for the currently selected room and refresh the calendar.
+function calLoadBookedDatesForRoom(roomId) {
+    cal.roomSelected = !!roomId;
+    calRebuildBookedSet([]);
+    calRenderSideNote();
+    calRender();
+    if (!roomId) return;
+
+    fetch(`hotel_reservations.php?ajax=room_booked_dates&room_id=${roomId}`)
+        .then(r => r.json())
+        .then(data => {
+            calRebuildBookedSet(Array.isArray(data) ? data : []);
+
+            // Corner case: switching rooms after a range was already picked. If the existing
+            // selection now overlaps the new room's bookings, clear it and warn instead of
+            // silently submitting a stale, invalid range.
+            if (cal.selFrom && cal.selUntil && calRangeHasConflict(cal.selFrom, cal.selUntil)) {
+                calClearSelection();
+                calShowWarning('Previous dates are reserved for this room — pick again.');
+            } else {
+                calRender();
+            }
+        })
+        .catch(() => { /* fail quietly; calendar just won't show booked dates */ });
+}
+
+calInit();
+
 function onRoomChange() {
     const sel = document.getElementById('room_id');
     const opt = sel.options[sel.selectedIndex];
@@ -489,6 +891,7 @@ function onRoomChange() {
         document.getElementById('price_per_day').value = 0;
         document.getElementById('calc_price').innerText = '৳0.00';
     }
+    calLoadBookedDatesForRoom(opt && opt.value ? opt.value : '');
     onDatesChange();
 }
 

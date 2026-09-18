@@ -38,6 +38,14 @@ $subtotal = $room_charge_total + $extension_charge_total + $service_total;
 
 $payments_made = get_booking_payments_total($conn, $booking_id);
 
+// Late-checkout check: is today past the reservation's reserved_until date?
+$today_date = date('Y-m-d');
+$reserved_until_date = date('Y-m-d', strtotime($booking['reserved_until']));
+$is_late_checkout = $today_date > $reserved_until_date;
+$late_checkout_days = $is_late_checkout
+    ? (new DateTime($reserved_until_date))->diff(new DateTime($today_date))->days
+    : 0;
+
 // Service records for display
 $services_result = mysqli_query($conn, "SELECT * FROM hotel_booking_services WHERE booking_id = {$booking_id} ORDER BY created_at ASC");
 $services = [];
@@ -85,6 +93,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'do_ch
         $balance_after_payment = max(0, $remaining_payable - $final_payment_amount);
         if (empty($errors) && $balance_after_payment > 0.01) {
             $errors[] = 'Checkout is not allowed while a balance is due. Remaining due after this payment: ৳' . number_format($balance_after_payment, 2) . '. Please collect full payment before checking out.';
+        }
+
+        // Late checkout: if today is past reserved_until, require explicit confirmation.
+        $confirm_late_checkout = isset($_POST['confirm_late_checkout']) && $_POST['confirm_late_checkout'] === '1';
+        if ($is_late_checkout && !$confirm_late_checkout) {
+            $errors[] = "This stay was booked until " . date('d M Y', strtotime($booking['reserved_until'])) . ", which is {$late_checkout_days} day(s) ago. Please confirm late checkout to proceed.";
         }
 
         if (empty($errors)) {
@@ -279,6 +293,20 @@ require __DIR__ . '/navbar.php';
                         <div class="form-text text-danger d-none" id="paymentError">Payment cannot exceed the remaining payable amount.</div>
                         <div class="alert alert-warning py-2 small mt-2 d-none" id="dueBlockError"><i class="bi bi-exclamation-triangle me-1"></i>Checkout is blocked while a balance remains due. Please collect full payment first.</div>
                     </div>
+
+                    <?php if ($is_late_checkout): ?>
+                    <div class="col-12">
+                        <div class="alert alert-warning py-2 small mb-2" id="lateCheckoutError">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            This stay was booked until <?= e(date('d M Y', strtotime($booking['reserved_until']))) ?>, which is <?= (int)$late_checkout_days ?> day(s) ago. Confirm you want to check out now.
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="confirm_late_checkout_cb" onchange="validatePayment()">
+                            <input type="hidden" name="confirm_late_checkout" id="confirm_late_checkout" value="0">
+                            <label class="form-check-label small" for="confirm_late_checkout_cb">I confirm this late checkout</label>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="total-box">
@@ -320,6 +348,7 @@ const subtotal = <?= $subtotal ?>;
 const existingDiscount = <?= $existing_discount ?>;
 const existingTax = <?= $existing_tax ?>;
 const paymentsMade = <?= $payments_made ?>;
+const isLateCheckout = <?= $is_late_checkout ? 'true' : 'false' ?>;
 
 function recalc() {
     const addDiscount = parseFloat(document.getElementById('additional_discount').value) || 0;
@@ -349,6 +378,12 @@ function validatePayment() {
     const dueBlockBox = document.getElementById('dueBlockError');
     const btn = document.getElementById('checkoutBtn');
 
+    // Late checkout: both the balance-due rule and the late-checkout confirmation (if applicable) must pass.
+    const lateCb = document.getElementById('confirm_late_checkout_cb');
+    const lateHidden = document.getElementById('confirm_late_checkout');
+    const lateOk = !isLateCheckout || (lateCb && lateCb.checked);
+    if (lateHidden) lateHidden.value = (lateCb && lateCb.checked) ? '1' : '0';
+
     if (payment > remaining + 0.01) {
         errBox.classList.remove('d-none');
         dueBlockBox.classList.add('d-none');
@@ -356,6 +391,10 @@ function validatePayment() {
     } else if (dueAfter > 0.01) {
         errBox.classList.add('d-none');
         dueBlockBox.classList.remove('d-none');
+        btn.disabled = true;
+    } else if (!lateOk) {
+        errBox.classList.add('d-none');
+        dueBlockBox.classList.add('d-none');
         btn.disabled = true;
     } else {
         errBox.classList.add('d-none');
