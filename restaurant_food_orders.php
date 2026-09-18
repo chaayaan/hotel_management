@@ -530,7 +530,7 @@ require __DIR__ . '/navbar.php';
             <div class="row g-2 mt-1">
                 <div class="col-6">
                     <label class="form-label small fw-semibold mb-1">Tax %</label>
-                    <input type="number" step="0.1" min="0" name="tax_percent" id="tax_percent" class="form-control form-control-sm" value="5" oninput="recalcCart()">
+                    <input type="number" step="0.1" min="0" name="tax_percent" id="tax_percent" class="form-control form-control-sm" value="0" oninput="recalcCart()">
                 </div>
                 <div class="col-6">
                     <label class="form-label small fw-semibold mb-1">Discount (৳)</label>
