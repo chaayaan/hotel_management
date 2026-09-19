@@ -250,6 +250,14 @@ function nav_active($key, $active) {
         font-weight: 600;
         border-bottom: none;
     }
+    /* Stat cards (payroll dashboard / history) */
+    .stat-card { display: flex; flex-direction: row; align-items: center; gap: 14px; padding: 16px 18px; }
+    .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+    .stat-icon.green { background: #e3f1ea; color: var(--brand-primary); }
+    .stat-icon.red   { background: #fbe6e8; color: #b02a37; }
+    .stat-icon.amber { background: #fbf0d3; color: #8a6a10; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.15; color: #1c3d2e; }
+    .stat-label { font-size: 0.78rem; color: #6b7c74; }
     .badge-status-available { background: #198754; }
     .badge-status-occupied { background: #dc3545; }
     .badge-status-maintenance { background: #fd7e14; }
@@ -263,10 +271,11 @@ function nav_active($key, $active) {
 
     // Which pages belong to which group (drives both "which rail icon is active"
     // and "which panel opens by default").
-    $dashboard_pages   = ['dashboard', 'hotel_dashboard', 'restaurant_dashboard'];
+    $dashboard_pages   = ['dashboard', 'hotel_dashboard', 'restaurant_dashboard', 'payroll_dashboard'];
     $hotel_pages       = ['front_desk', 'reservations', 'booking_list', 'services_history'];
     $restaurant_pages  = ['restaurant_front_desk', 'restaurant_order_list', 'restaurant_tables_status'];
     $expenses_pages    = ['expense_add', 'expense_history'];
+    $payroll_pages     = ['payroll_employees', 'payroll_designations', 'payroll_attendance', 'payroll_generate', 'payroll_list', 'payroll_history'];
     $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories', 'settings'];
 
     $in_group = function($pages) use ($active_menu) {
@@ -278,6 +287,7 @@ function nav_active($key, $active) {
     if ($in_group($hotel_pages)) $active_group = 'hotel';
     elseif ($in_group($restaurant_pages)) $active_group = 'restaurant';
     elseif ($in_group($expenses_pages)) $active_group = 'expenses';
+    elseif ($in_group($payroll_pages)) $active_group = 'payroll';
     elseif ($in_group($management_pages)) $active_group = 'management';
     elseif ($in_group($dashboard_pages)) $active_group = 'dashboard';
 ?>
@@ -313,6 +323,11 @@ function nav_active($key, $active) {
             <span class="rail-label">Expenses</span>
         </button>
 
+        <button type="button" class="rail-item <?= $active_group === 'payroll' ? 'active' : '' ?>" data-group="payroll">
+            <i class="bi bi-cash-stack"></i>
+            <span class="rail-label">Payroll</span>
+        </button>
+
         <button type="button" class="rail-item <?= $active_group === 'management' ? 'active' : '' ?>" data-group="management">
             <i class="bi bi-gear-fill"></i>
             <span class="rail-label">Management</span>
@@ -332,6 +347,11 @@ function nav_active($key, $active) {
             <?php if ($is_admin_role): ?>
             <a href="index.php" class="overview-link <?= nav_active('index', $active_menu) ?>">
                 <i class="bi bi-speedometer2"></i> Admin Dashboard
+            </a>
+            <?php endif; ?>
+            <?php if ($is_admin_role): ?>
+            <a href="payroll_dashboard.php" class="overview-link <?= nav_active('payroll_dashboard', $active_menu) ?>">
+                <i class="bi bi-cash-stack"></i> Payroll Dashboard
             </a>
             <?php endif; ?>
             <a href="hotel_dashboard.php" class="overview-link <?= nav_active('hotel_dashboard', $active_menu) ?>">
@@ -376,6 +396,28 @@ function nav_active($key, $active) {
             </a>
             <a href="expense_history.php" class="nav-link <?= nav_active('expense_history', $active_menu) ?>">
                 <i class="bi bi-journal-text"></i> Expense History
+            </a>
+        </div>
+
+        <!-- Payroll -->
+        <div class="nav-panel-group <?= $active_group === 'payroll' ? 'active' : '' ?>" data-panel="payroll">
+            <a href="payroll_employees.php" class="nav-link <?= nav_active('payroll_employees', $active_menu) ?>">
+                <i class="bi bi-people"></i> Employees
+            </a>
+            <a href="payroll_designations.php" class="nav-link <?= nav_active('payroll_designations', $active_menu) ?>">
+                <i class="bi bi-award"></i> Designations
+            </a>
+            <a href="payroll_attendance.php" class="nav-link <?= nav_active('payroll_attendance', $active_menu) ?>">
+                <i class="bi bi-calendar-check"></i> Attendance
+            </a>
+            <a href="payroll_generate.php" class="nav-link <?= nav_active('payroll_generate', $active_menu) ?>">
+                <i class="bi bi-calculator"></i> Generate Salary
+            </a>
+            <a href="payroll_list.php" class="nav-link <?= nav_active('payroll_list', $active_menu) ?>">
+                <i class="bi bi-journal-text"></i> Payroll List
+            </a>
+            <a href="payroll_salary_history.php" class="nav-link <?= nav_active('payroll_history', $active_menu) ?>">
+                <i class="bi bi-clock-history"></i> Salary History
             </a>
         </div>
 
