@@ -496,6 +496,8 @@ require __DIR__ . '/navbar.php';
                 </div>
             </div>
 
+            <div id="availabilityNote" class="mt-2"></div>
+
             <div id="summaryBox" class="mt-3">
                 <div class="info-line"><span class="label">Room</span><span class="value" id="sum_room">—</span></div>
                 <div class="info-line"><span class="label">Guest</span><span class="value" id="sum_guest">—</span></div>
@@ -503,7 +505,6 @@ require __DIR__ . '/navbar.php';
                 <div class="info-line"><span class="label">Reserved For</span><span class="value" id="sum_dates">—</span></div>
             </div>
 
-            <div id="availabilityNote" class="mt-2"></div>
 
             <input type="hidden" name="price_per_day" id="price_per_day" value="0">
 
