@@ -450,6 +450,17 @@ require __DIR__ . '/navbar.php';
         width: 80mm;
     }
 
+    /* POS/thermal (80mm) receipt margin baked into the print job itself, so the
+       browser's print dialog never needs manual margin setup before printing.
+       Left/right kept tight (0.05in) since receipt paper is narrow; top/bottom
+       kept a bit looser (0.1in). Matches restaurant_receipt.php's POS mode. */
+    @page {
+        margin-left: 0.05in;
+        margin-right: 0.05in;
+        margin-top: 0.1in;
+        margin-bottom: 0.1in;
+    }
+
     @media print {
         html, body { height: auto !important; overflow: visible !important; }
         body * { visibility: hidden !important; }

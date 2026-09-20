@@ -57,13 +57,32 @@ require __DIR__ . '/navbar.php';
 
     #printReceipt { display: none; font-family: Arial, Helvetica, sans-serif; }
 
+    /* POS/thermal (80mm) receipt margin baked into the print job itself, so the
+       browser's print dialog never needs manual margin setup before printing.
+       Left/right kept tight (0.05in) since receipt paper is narrow; top/bottom
+       kept a bit looser (0.1in). Matches restaurant_food_orders.php exactly —
+       static @page, no JS toggle, so it's reliable regardless of print mode. */
+    @page {
+        margin-left: 0.05in;
+        margin-right: 0.05in;
+        margin-top: 0.1in;
+        margin-bottom: 0.1in;
+    }
+
     @media print {
-        body * { visibility: hidden; }
-        #printReceipt, #printReceipt * { visibility: visible; }
-        #printReceipt { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+        html, body { height: auto !important; overflow: visible !important; }
+        body * { visibility: hidden !important; }
+        #printReceipt, #printReceipt * { visibility: visible !important; }
+        #printReceipt {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100%;
+        }
 
         .print-pos #printReceipt { max-width: 80mm; margin: 0 auto; }
-        .print-a4 #printReceipt { max-width: 100%; padding: 10mm; }
+        .print-a4 #printReceipt { max-width: 100%; }
     }
 
     .print-header { text-align: center; border-bottom: 2px dashed #dcdfdd; padding-bottom: 12px; margin-bottom: 14px; }
