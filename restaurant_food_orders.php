@@ -441,19 +441,26 @@ require __DIR__ . '/navbar.php';
     .print-totals .grand { font-size: 1.2rem; font-weight: 800; color: #0f5132; border-top: 1px solid #ccc; margin-top: 6px; padding-top: 8px; }
     .print-paid-note { background: #d1f5e0; color: #0f5132; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 10px; text-align: center; font-weight: 700; }
 
+    /* Keep the receipt markup out of the normal page flow/view. It only becomes
+       visible inside @media print, right when window.print() fires. */
+    .receipt-print-only {
+        position: absolute !important;
+        left: -9999px !important;
+        top: -9999px !important;
+        width: 80mm;
+    }
+
     @media print {
         html, body { height: auto !important; overflow: visible !important; }
         body * { visibility: hidden !important; }
-        .receipt-modal-backdrop { position: static !important; display: block !important; background: none !important; padding: 0 !important; inset: auto !important; }
-        .receipt-modal-card { position: static !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; max-width: none !important; }
         #receiptPrintArea, #receiptPrintArea * { visibility: visible !important; }
         #receiptPrintArea {
             display: block !important;
             position: absolute !important;
-            top: 0; left: 0;
+            left: 0 !important;
+            top: 0 !important;
             width: 100%; max-width: 80mm; margin: 0 auto;
         }
-        .receipt-modal-actions { display: none !important; }
     }
 </style>
 
@@ -591,17 +598,11 @@ require __DIR__ . '/navbar.php';
     </div>
 </div>
 
-<!-- Same-page receipt preview / print -->
-<div class="receipt-modal-backdrop" id="receiptBackdrop">
-    <div class="receipt-modal-card">
-        <div id="receiptPrintArea">
-            <!-- receipt HTML injected here after a successful payment -->
-        </div>
-        <div class="receipt-modal-actions">
-            <button type="button" class="btn-print" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print Receipt</button>
-            <button type="button" class="btn-new-order" onclick="startNewOrder()"><i class="bi bi-plus-circle me-1"></i>New Order</button>
-        </div>
-    </div>
+<!-- Hidden receipt container used only for silent direct printing.
+     Not shown on screen (see .receipt-print-only rule below); only visible
+     inside @media print so the OS print dialog is skipped in kiosk-printing mode. -->
+<div id="receiptPrintArea" class="receipt-print-only">
+    <!-- receipt HTML injected here right before printing -->
 </div>
 
 <script>
@@ -806,8 +807,12 @@ function clearError() {
 }
 
 function showReceipt(html) {
+    // Silent direct-print: no preview modal, no manual click.
+    // Inject the receipt markup into the hidden print area and fire print immediately.
     document.getElementById('receiptPrintArea').innerHTML = html;
-    document.getElementById('receiptBackdrop').classList.add('show');
+    window.print();
+    // Reset the form for the next order right after printing.
+    startNewOrder();
 }
 
 function startNewOrder() {
@@ -819,7 +824,6 @@ function startNewOrder() {
     document.getElementById('amount_received').value = '';
     document.getElementById('orderIdField').value = 0;
     clearError();
-    document.getElementById('receiptBackdrop').classList.remove('show');
     document.getElementById('receiptPrintArea').innerHTML = '';
     renderCart();
 }
