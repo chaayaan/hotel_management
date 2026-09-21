@@ -7,6 +7,7 @@
 require_once __DIR__ . '/auth.php';
 require_role(['admin', 'general_manager']);
 require_once __DIR__ . '/payroll_functions.php';
+require_once __DIR__ . '/payroll_attendance_calendar.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
@@ -47,6 +48,17 @@ $slipNo     = 'SAL-' . sprintf('%04d%02d', (int) $slip['year'], (int) $slip['mon
 $statusText = $slip['payment_status'] ?? 'Not Paid';
 $generated  = date('d M Y', strtotime($slip['generated_at']));
 
+/* ---------- Daily attendance calendar ---------- */
+$attAll   = loadMonthAttendance($conn, (int) $slip['month'], (int) $slip['year'], [(int) $slip['employee_id']]);
+$attDays  = $attAll[(int) $slip['employee_id']] ?? [];
+$attCalHtml = renderAttendanceCalendar($attDays, (int) $slip['month'], (int) $slip['year']);
+$attCnt   = attendanceCounts($attDays);
+// Prefer the daily records; fall back to the stored payroll totals if none found.
+$sumP = $attDays ? $attCnt['P'] : (int) $slip['present_days'];
+$sumA = $attDays ? $attCnt['A'] : (int) $slip['absent_days'];
+$sumL = $attDays ? $attCnt['L'] : (int) $slip['leave_days'];
+$attSummaryHtml = renderAttendanceSummary((int) $slip['total_days'], $sumP, $sumA, $sumL);
+
 /* ---------- Resort details (same settings table the restaurant receipt uses) ---------- */
 $settings = [];
 try {
@@ -63,6 +75,7 @@ $resort_website = $settings['resort_website'] ?? '';
 $page_title  = 'Salary Slip';
 $active_menu = 'payroll_list';
 require_once __DIR__ . '/navbar.php';
+echo attendanceCalendarCss();
 ?>
 
 <style>
@@ -160,13 +173,11 @@ require_once __DIR__ . '/navbar.php';
 
                 <hr class="r-divider">
 
-                <div class="r-section-title">Attendance</div>
-                <div class="r-att">
-                    <div><span class="n"><?= (int) $slip['total_days'] ?></span><span class="l">Total</span></div>
-                    <div><span class="n"><?= (int) $slip['present_days'] ?></span><span class="l">Present</span></div>
-                    <div><span class="n"><?= (int) $slip['absent_days'] ?></span><span class="l">Absent</span></div>
-                    <div><span class="n"><?= (int) $slip['leave_days'] ?></span><span class="l">Leave</span></div>
-                </div>
+                <div class="r-section-title">Attendance &mdash; <?= e($period) ?></div>
+                <div class="d-print-none"><?= attendanceDiagnostic() ?></div>
+                <?= $attCalHtml ?>
+                <?= $attSummaryHtml ?>
+                <div class="mt-2"><?= attendanceLegend() ?></div>
 
                 <hr class="r-divider">
 
@@ -269,18 +280,10 @@ require_once __DIR__ . '/navbar.php';
     <div class="print-info-row"><span>Pay Period</span><span><?= e($period) ?></span></div>
     <div class="print-info-row"><span>Generated</span><span><?= e($generated) ?></span></div>
 
-    <div class="print-section">Attendance</div>
-    <table class="print-table">
-        <thead><tr><th>Total</th><th>Present</th><th>Absent</th><th>Leave</th></tr></thead>
-        <tbody>
-            <tr>
-                <td><?= (int) $slip['total_days'] ?></td>
-                <td><?= (int) $slip['present_days'] ?></td>
-                <td><?= (int) $slip['absent_days'] ?></td>
-                <td><?= (int) $slip['leave_days'] ?></td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="print-section">Attendance &mdash; <?= e($period) ?></div>
+    <?= $attCalHtml ?>
+    <?= $attSummaryHtml ?>
+    <div style="margin-top:6px;"><?= attendanceLegend() ?></div>
 
     <div class="print-section">Salary</div>
     <table class="print-table">

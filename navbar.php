@@ -275,7 +275,7 @@ function nav_active($key, $active) {
     $hotel_pages       = ['front_desk', 'reservations', 'booking_list', 'services_history'];
     $restaurant_pages  = ['restaurant_front_desk', 'restaurant_order_list', 'restaurant_tables_status'];
     $expenses_pages    = ['expense_add', 'expense_history'];
-    $payroll_pages     = ['payroll_employees', 'payroll_designations', 'payroll_attendance', 'payroll_generate', 'payroll_list', 'payroll_history'];
+    $payroll_pages     = ['payroll_employees', 'payroll_designations', 'payroll_attendance', 'attendance_history', 'payroll_generate', 'payroll_list', 'payroll_history'];
     $management_pages  = ['rooms', 'room_types', 'restaurant_tables', 'restaurant_food_categories', 'restaurant_food_items', 'users', 'expense_categories', 'settings'];
 
     $in_group = function($pages) use ($active_menu) {
@@ -409,6 +409,9 @@ function nav_active($key, $active) {
             </a>
             <a href="payroll_attendance.php" class="nav-link <?= nav_active('payroll_attendance', $active_menu) ?>">
                 <i class="bi bi-calendar-check"></i> Attendance
+            </a>
+            <a href="attendance_history.php" class="nav-link <?= nav_active('attendance_history', $active_menu) ?>">
+                <i class="bi bi-calendar-week"></i> Attendance History
             </a>
             <a href="payroll_generate.php" class="nav-link <?= nav_active('payroll_generate', $active_menu) ?>">
                 <i class="bi bi-calculator"></i> Generate Salary

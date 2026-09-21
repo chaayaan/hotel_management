@@ -2,12 +2,34 @@
 require_once __DIR__ . '/auth.php';
 require_role(['admin', 'general_manager']);
 require_once __DIR__ . '/payroll_functions.php';
+require_once __DIR__ . '/payroll_attendance_calendar.php';
 
 $page_title  = 'Payroll';
 $active_menu = 'payroll_list';
 
-$filterMonth = $_GET['month'] ?? '';
-$filterYear  = $_GET['year'] ?? '';
+/* Default to the current month/year on first visit (no filter params in the URL).
+   Once the filter form is submitted, "All months" / blank year are respected. */
+$isFirstVisit = !isset($_GET['month']) && !isset($_GET['year']);
+$defaultMonth = (string) (int) date('n');
+$defaultYear  = (string) (int) date('Y');
+$filterMonth  = $isFirstVisit ? $defaultMonth : ($_GET['month'] ?? '');
+$filterYear   = $isFirstVisit ? $defaultYear  : ($_GET['year'] ?? '');
+
+/* ---------- Year dropdown: earliest payroll year -> current year (auto-grows every year) ---------- */
+$currentYear = (int) date('Y');
+$firstYear   = $currentYear;
+try {
+    $yr = $conn->query("SELECT MIN(year) AS y FROM payroll_payroll");
+    if ($yr && ($yrow = $yr->fetch_assoc()) && $yrow['y']) {
+        $firstYear = min($currentYear, (int) $yrow['y']);
+    }
+} catch (Throwable $ex) { /* fall back to current year only */ }
+$yearOptions = range($firstYear, $currentYear);          // ascending: current year is last
+// Keep a manually-typed/bookmarked year (e.g. ?year=2031) selectable so the filter never silently changes
+if ($filterYear !== '' && !in_array((int) $filterYear, $yearOptions, true)) {
+    $yearOptions[] = (int) $filterYear;
+    sort($yearOptions);
+}
 
 $sql = "
     SELECT p.*, e.name,
@@ -45,26 +67,63 @@ foreach ($rows as $r) {
     $sumPaid   += $r['amount_paid'] ?? 0;
 }
 
+/* ---------- Attendance grid view (needs a specific month + year) ---------- */
+$view      = $_GET['view'] ?? 'salary';
+$canGrid   = ($filterMonth !== '' && $filterYear !== '');
+if ($view === 'attendance' && !$canGrid) { $view = 'salary'; $gridNeedsPeriod = true; }
+$attGrid = '';
+if ($view === 'attendance') {
+    $people = [];
+    foreach ($rows as $r) { $people[(int) $r['employee_id']] = ['id' => (int) $r['employee_id'], 'name' => $r['name'], 'url' => 'employee_daily_history.php?' . http_build_query(['employee_id' => (int) $r['employee_id'], 'month' => (int) $filterMonth, 'year' => (int) $filterYear])]; }
+    $attData = loadMonthAttendance($conn, (int) $filterMonth, (int) $filterYear, array_keys($people));
+    $attGrid = renderAttendanceGrid(array_values($people), $attData, (int) $filterMonth, (int) $filterYear);
+}
+$qs = function (string $v) use ($filterMonth, $filterYear) { return '?' . http_build_query(['month' => $filterMonth, 'year' => $filterYear, 'view' => $v]); };
+
 require_once __DIR__ . '/navbar.php';
+echo attendanceCalendarCss();
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <form method="GET" class="d-flex gap-2 flex-wrap">
+    <input type="hidden" name="view" value="<?= e($view) ?>">
     <select name="month" class="form-select" style="width:auto;">
       <option value="">All months</option>
       <?php for ($m = 1; $m <= 12; $m++): ?>
         <option value="<?= $m ?>" <?= (string) $filterMonth === (string) $m ? 'selected' : '' ?>><?= monthName($m) ?></option>
       <?php endfor; ?>
     </select>
-    <input type="number" name="year" class="form-control" style="width:110px;" placeholder="Year" value="<?= e($filterYear) ?>">
+    <select name="year" class="form-select" style="width:auto;">
+      <option value="">All years</option>
+      <?php foreach ($yearOptions as $y): ?>
+        <option value="<?= $y ?>" <?= (string) $filterYear === (string) $y ? 'selected' : '' ?>><?= $y ?></option>
+      <?php endforeach; ?>
+    </select>
     <button class="btn btn-outline-brand">Filter</button>
-    <?php if ($filterMonth !== '' || $filterYear !== ''): ?>
-      <a href="payroll_list.php" class="btn btn-link text-muted">Clear</a>
+    <?php if ((string) $filterMonth !== $defaultMonth || (string) $filterYear !== $defaultYear): ?>
+      <a href="payroll_list.php" class="btn btn-link text-muted">Current month</a>
     <?php endif; ?>
   </form>
   <a href="payroll_generate.php" class="btn btn-brand"><i class="bi bi-plus-lg me-1"></i>Generate salary</a>
 </div>
 
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <div class="btn-group btn-group-sm">
+    <a href="<?= e($qs('salary')) ?>" class="btn <?= $view === 'salary' ? 'btn-brand' : 'btn-outline-brand' ?>"><i class="bi bi-table me-1"></i>Salary table</a>
+    <a href="<?= e($qs('attendance')) ?>" class="btn <?= $view === 'attendance' ? 'btn-brand' : 'btn-outline-brand' ?>"><i class="bi bi-calendar3 me-1"></i>Attendance (day-wise)</a>
+  </div>
+  <?= attendanceLegend() ?>
+</div>
+<?php if (!empty($gridNeedsPeriod)): ?>
+  <div class="alert alert-info py-2 small">Pick a <strong>month and year</strong> and press Filter to see the day-wise attendance grid.</div>
+<?php endif; ?>
+
+<?php if ($view === 'attendance'): ?>
+<?= attendanceDiagnostic() ?>
+<div class="card mb-3 overflow-hidden"><?= $attGrid ?></div>
+<?php endif; ?>
+
+<?php if ($view !== 'attendance'): ?>
 <div class="card">
   <div class="table-responsive">
     <table class="table align-middle mb-0">
@@ -106,5 +165,6 @@ require_once __DIR__ . '/navbar.php';
     </table>
   </div>
 </div>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/footer.php'; ?>
