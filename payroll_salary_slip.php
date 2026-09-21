@@ -1,13 +1,19 @@
 <?php
 /**
  * Payroll > Salary Slip
- * Same layout as restaurant_receipt.php: on-screen slip + financial summary panel,
- * with separate POS (80mm) and A4 print layouts.
+ * Formal salary slip: on-screen preview + financial summary panel, with separate
+ * POS (80mm) and A4 print layouts. Printing is done through a hidden iframe so the
+ * page margins can be controlled per layout (POS default margin = 0.5cm).
  */
 require_once __DIR__ . '/auth.php';
 require_role(['admin', 'general_manager']);
 require_once __DIR__ . '/payroll_functions.php';
 require_once __DIR__ . '/payroll_attendance_calendar.php';
+
+/* ---------- Print settings ---------- */
+$posMargin  = '0.5cm';   // default page margin for the POS (80mm) print
+$a4Margin   = '12mm';    // page margin for the A4 print
+$weekStart  = 0;         // first column of the calendar: 0 = Sunday, 1 = Monday, 6 = Saturday
 
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
@@ -45,19 +51,75 @@ $isPaid     = $hasPayment && $due <= 0.009;
 $noPayable  = $net <= 0.009;
 $period     = monthName($slip['month']) . ' ' . (int) $slip['year'];
 $slipNo     = 'SAL-' . sprintf('%04d%02d', (int) $slip['year'], (int) $slip['month']) . '-' . str_pad((string) $slip['id'], 4, '0', STR_PAD_LEFT);
-$statusText = $slip['payment_status'] ?? 'Not Paid';
 $generated  = date('d M Y', strtotime($slip['generated_at']));
 
-/* ---------- Daily attendance calendar ---------- */
-$attAll   = loadMonthAttendance($conn, (int) $slip['month'], (int) $slip['year'], [(int) $slip['employee_id']]);
-$attDays  = $attAll[(int) $slip['employee_id']] ?? [];
-$attCalHtml = renderAttendanceCalendar($attDays, (int) $slip['month'], (int) $slip['year']);
-$attCnt   = attendanceCounts($attDays);
+/* ---------- Daily attendance ---------- */
+$attAll  = loadMonthAttendance($conn, (int) $slip['month'], (int) $slip['year'], [(int) $slip['employee_id']]);
+$attDays = $attAll[(int) $slip['employee_id']] ?? [];
+$attCnt  = attendanceCounts($attDays);
 // Prefer the daily records; fall back to the stored payroll totals if none found.
 $sumP = $attDays ? $attCnt['P'] : (int) $slip['present_days'];
 $sumA = $attDays ? $attCnt['A'] : (int) $slip['absent_days'];
 $sumL = $attDays ? $attCnt['L'] : (int) $slip['leave_days'];
-$attSummaryHtml = renderAttendanceSummary((int) $slip['total_days'], $sumP, $sumA, $sumL);
+
+/**
+ * Compact formal attendance calendar (one small cell per day: "12 P").
+ * $days = [dayNumber => 'P'|'A'|'L'] (array values with a 'code' key are accepted too).
+ */
+function slipCalendarHtml(array $days, int $month, int $year, int $weekStart = 0): string
+{
+    $weekend = defined('ATT_WEEKEND_DOW') ? (array) ATT_WEEKEND_DOW : [5];
+    $names   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    $first   = mktime(0, 0, 0, $month, 1, $year);
+    $dim     = (int) date('t', $first);
+    $offset  = ((int) date('w', $first) - $weekStart + 7) % 7;
+
+    $h = '<table class="sl-cal"><thead><tr>';
+    for ($i = 0; $i < 7; $i++) {
+        $dow = ($weekStart + $i) % 7;
+        $h  .= '<th' . (in_array($dow, $weekend, true) ? ' class="sl-w"' : '') . '>' . $names[$dow] . '</th>';
+    }
+    $h .= '</tr></thead><tbody><tr>';
+
+    $cell = 0;
+    for ($i = 0; $i < $offset; $i++, $cell++) {
+        $h .= '<td class="sl-e"></td>';
+    }
+    for ($d = 1; $d <= $dim; $d++, $cell++) {
+        if ($cell > 0 && $cell % 7 === 0) {
+            $h .= '</tr><tr>';
+        }
+        $dow  = ($weekStart + $cell) % 7;
+        $code = $days[$d] ?? '';
+        if (is_array($code)) {
+            $code = $code['code'] ?? '';
+        }
+        $code = in_array($code, ['P', 'A', 'L'], true) ? $code : '';
+        $cls  = $code !== '' ? 'sl-' . $code : (in_array($dow, $weekend, true) ? 'sl-w' : '');
+        $h   .= '<td' . ($cls ? ' class="' . $cls . '"' : '') . '><span class="d">' . $d . '</span>'
+              . ($code !== '' ? '<b class="s">' . $code . '</b>' : '') . '</td>';
+    }
+    while ($cell % 7 !== 0) {
+        $h .= '<td class="sl-e"></td>';
+        $cell++;
+    }
+    $h .= '</tr></tbody></table>';
+
+    $h .= '<div class="sl-leg">'
+        . '<span><b>P</b> Present</span><span><b>A</b> Absent</span><span><b>L</b> Leave</span>'
+        . '<span><i class="sw"></i> Weekly off</span></div>';
+    return $h;
+}
+
+function slipSummaryHtml(int $total, int $p, int $a, int $l): string
+{
+    return '<table class="sl-t sl-sum"><thead><tr><th>Attendance</th><th class="n">Days</th></tr></thead><tbody>'
+         . '<tr><td>Total days in month</td><td class="n">' . $total . '</td></tr>'
+         . '<tr><td>Present</td><td class="n">' . $p . '</td></tr>'
+         . '<tr><td>Absent</td><td class="n">' . $a . '</td></tr>'
+         . '<tr><td>Leave</td><td class="n">' . $l . '</td></tr>'
+         . '</tbody></table>';
+}
 
 /* ---------- Resort details (same settings table the restaurant receipt uses) ---------- */
 $settings = [];
@@ -71,6 +133,165 @@ $resort_name    = $settings['resort_name'] ?? 'Resort';
 $resort_address = $settings['resort_address'] ?? '';
 $resort_phone   = $settings['resort_phone'] ?? '';
 $resort_website = $settings['resort_website'] ?? '';
+$contactLine    = implode(' · ', array_filter([$resort_phone, $resort_website]));
+
+/* ---------- Slip markup (used for both the on-screen preview and the print) ---------- */
+ob_start();
+?>
+<div class="sl-head">
+    <div class="sl-org"><?= e($resort_name) ?></div>
+    <?php if ($resort_address): ?><div class="sl-addr"><?= e($resort_address) ?></div><?php endif; ?>
+    <?php if ($contactLine): ?><div class="sl-addr"><?= e($contactLine) ?></div><?php endif; ?>
+    <div class="sl-title">SALARY SLIP</div>
+</div>
+
+<div class="sl-kv">
+    <div class="col">
+        <div class="kv"><span class="k">Employee</span><span class="v"><?= e($slip['name']) ?></span></div>
+        <div class="kv"><span class="k">Designation</span><span class="v"><?= e($slip['designation'] ?: '—') ?></span></div>
+        <div class="kv"><span class="k">Department</span><span class="v"><?= e($slip['department'] ?: '—') ?></span></div>
+    </div>
+    <div class="col">
+        <div class="kv"><span class="k">Slip No.</span><span class="v"><?= e($slipNo) ?></span></div>
+        <div class="kv"><span class="k">Pay period</span><span class="v"><?= e($period) ?></span></div>
+        <div class="kv"><span class="k">Generated</span><span class="v"><?= e($generated) ?></span></div>
+    </div>
+</div>
+
+<div class="sl-h">Attendance &mdash; <?= e($period) ?></div>
+<div class="sl-att">
+    <div><?= slipCalendarHtml($attDays, (int) $slip['month'], (int) $slip['year'], $weekStart) ?></div>
+    <div><?= slipSummaryHtml((int) $slip['total_days'], $sumP, $sumA, $sumL) ?></div>
+</div>
+
+<div class="sl-h">Salary</div>
+<table class="sl-t">
+    <thead><tr><th>Description</th><th class="n">Amount</th></tr></thead>
+    <tbody>
+        <tr><td>Basic monthly salary</td><td class="n"><?= money($slip['basic_salary']) ?></td></tr>
+        <tr><td>Per day rate <span class="sm">(basic &divide; <?= (int) $slip['total_days'] ?> days)</span></td><td class="n"><?= money($perDay) ?></td></tr>
+        <tr><td>Present days paid</td><td class="n"><?= (int) $slip['present_days'] ?> day(s)</td></tr>
+    </tbody>
+    <tfoot><tr class="tot"><td>Net payable</td><td class="n"><?= money($net) ?></td></tr></tfoot>
+</table>
+
+<div class="sl-h">Payment</div>
+<table class="sl-t">
+    <tbody>
+        <tr><td>Net payable</td><td class="n"><?= money($net) ?></td></tr>
+        <tr><td>Total paid</td><td class="n"><?= money($totalPaid) ?></td></tr>
+        <tr class="tot"><td>Balance due</td><td class="n"><?= money($due) ?></td></tr>
+    </tbody>
+</table>
+
+<?php if ($hasPayment): ?>
+<div class="sl-kv sl-pay">
+    <div class="col">
+        <div class="kv"><span class="k">Payment date</span><span class="v"><?= e(date('d M Y', strtotime($slip['payment_date']))) ?></span></div>
+        <div class="kv"><span class="k">Method</span><span class="v"><?= e($slip['payment_method']) ?></span></div>
+    </div>
+    <div class="col">
+        <div class="kv"><span class="k">Status</span><span class="v"><?= e($slip['payment_status']) ?></span></div>
+    </div>
+</div>
+<?php endif; ?>
+
+<div class="sl-stamp">
+    <?php if ($noPayable): ?>No salary payable this month
+    <?php elseif ($isPaid): ?>Paid in full
+    <?php elseif ($hasPayment): ?>Partly paid &mdash; balance <?= money($due) ?>
+    <?php else: ?>Not paid &mdash; balance <?= money($due) ?>
+    <?php endif; ?>
+</div>
+
+<div class="sl-sign">
+    <div>Employee signature</div>
+    <div>Authorised by</div>
+</div>
+
+<div class="sl-foot">This is a computer-generated salary slip.</div>
+<?php
+$slipHtml = ob_get_clean();
+
+/* ---------- Slip stylesheet (shared by the on-screen preview and the print iframe) ---------- */
+$slipCss = <<<'CSS'
+.sl { --ink:#111; --mute:#555; --line:#222; --hair:#bdbdbd; --tint:#eee;
+      font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.35; color: var(--ink);
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.sl, .sl * { box-sizing: border-box; }
+
+/* Letterhead */
+.sl-head { text-align: center; padding-bottom: 8px; border-bottom: 3px double var(--line); }
+.sl-org  { font-size: 1.5em; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.sl-addr { font-size: .85em; color: var(--mute); margin-top: 1px; }
+.sl-title{ display: inline-block; margin-top: 8px; padding: 2px 16px; border: 1.5px solid var(--line);
+           font-size: .95em; font-weight: 700; letter-spacing: .2em; }
+
+/* Key / value blocks */
+.sl-kv   { display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; margin-top: 10px; }
+.sl-kv .kv { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--hair); }
+.sl-kv .k  { color: var(--mute); }
+.sl-kv .v  { font-weight: 700; text-align: right; }
+.sl-pay    { margin-top: 6px; }
+
+/* Section headings */
+.sl-h { margin: 13px 0 6px; padding: 2px 0; font-size: .8em; font-weight: 700; letter-spacing: .1em;
+        text-transform: uppercase; border-bottom: 1.5px solid var(--line); }
+
+/* Attendance: calendar + summary side by side */
+.sl-att { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; break-inside: avoid; }
+
+/* Compact calendar */
+.sl-cal { width: 74mm; border-collapse: collapse; table-layout: fixed; }
+.sl-cal th { padding: 1px 0; border: 1px solid var(--line); background: var(--tint); font-size: .7em;
+             font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: .02em; }
+.sl-cal td { height: 5.4mm; padding: 0 1px; border: 1px solid var(--hair); text-align: center;
+             vertical-align: middle; font-size: .78em; white-space: nowrap; }
+.sl-cal .d { color: var(--mute); margin-right: 3px; font-size: .92em; }
+.sl-cal .s { font-weight: 700; }
+.sl-cal td.sl-e { background: #fafafa; }
+.sl-cal td.sl-w { background: repeating-linear-gradient(45deg, #e4e4e4 0, #e4e4e4 2px, #fff 2px, #fff 4px); }
+.sl-cal td.sl-P { background: #fff; }
+.sl-cal td.sl-A { background: #cfcfcf; }
+.sl-cal td.sl-A .d, .sl-cal td.sl-A .s { color: #000; }
+.sl-cal td.sl-L { background: #ececec; }
+.sl-cal td.sl-L .s { font-style: italic; text-decoration: underline; }
+.sl-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: .72em; color: var(--mute); }
+.sl-leg b { display: inline-block; min-width: 1.1em; padding: 0 2px; border: 1px solid var(--hair); text-align: center; color: var(--ink); }
+.sl-leg .sw { display: inline-block; width: 1.3em; height: .8em; margin-right: 3px; vertical-align: -1px; border: 1px solid var(--hair);
+              background: repeating-linear-gradient(45deg, #e4e4e4 0, #e4e4e4 2px, #fff 2px, #fff 4px); }
+
+/* Tables */
+.sl-t { width: 100%; border-collapse: collapse; break-inside: avoid; }
+.sl-t th, .sl-t td { padding: 3px 7px; border: 1px solid var(--line); }
+.sl-t th { background: var(--tint); font-size: .78em; font-weight: 700; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+.sl-t .n  { text-align: right; white-space: nowrap; }
+.sl-t .sm { font-size: .82em; color: var(--mute); }
+.sl-t tr.tot td, .sl-t tfoot td { background: var(--tint); font-weight: 700; border-top: 2px solid var(--line); }
+.sl-sum td { padding-top: 2px; padding-bottom: 2px; }
+
+/* Status, signatures, footer */
+.sl-stamp { margin-top: 12px; padding: 5px 8px; border: 2px solid var(--line); text-align: center; font-weight: 700;
+            font-size: .88em; letter-spacing: .1em; text-transform: uppercase; break-inside: avoid; }
+.sl-sign  { display: flex; gap: 28px; margin-top: 36px; break-inside: avoid; }
+.sl-sign div { flex: 1; padding-top: 3px; border-top: 1px solid var(--line); text-align: center; font-size: .8em; }
+.sl-foot  { margin-top: 12px; text-align: center; font-size: .75em; color: var(--mute); }
+
+/* POS (80mm) layout: everything stacked, calendar fills the width */
+.sl.pos { font-size: 8.5pt; width: 100%; }
+.sl.pos .sl-org { font-size: 1.3em; }
+.sl.pos .sl-kv  { grid-template-columns: 1fr; margin-top: 6px; }
+.sl.pos .sl-kv .col + .col { margin-top: 0; }
+.sl.pos .sl-att { grid-template-columns: 1fr; gap: 8px; }
+.sl.pos .sl-cal { width: 100%; }
+.sl.pos .sl-cal td { height: 5mm; }
+.sl.pos .sl-sign { gap: 14px; margin-top: 24px; }
+
+/* On-screen preview only: tinted status colours */
+.sl.scr .sl-cal td.sl-P { background: #e6f4ea; }
+.sl.scr .sl-cal td.sl-A { background: #fbe4e2; }
+.sl.scr .sl-cal td.sl-L { background: #fff1cf; }
+CSS;
 
 $page_title  = 'Salary Slip';
 $active_menu = 'payroll_list';
@@ -88,127 +309,18 @@ echo attendanceCalendarCss();
     .paid-note { background: #d1f5e0; color: #0f5132; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; margin-top: 12px; text-align: center; font-weight: 600; }
     .neutral-note { background: #eef2f0; color: #1c3d2e; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; margin-top: 12px; text-align: center; font-weight: 600; }
 
-    #printReceipt { display: none; font-family: Arial, Helvetica, sans-serif; }
+    .slip-paper { max-width: 780px; margin: 0 auto; padding: 26px 28px; background: #fff; border: 1px solid #d5d9d7; box-shadow: 0 2px 10px rgba(20, 40, 30, .06); }
+    @media (max-width: 575.98px) { .slip-paper { padding: 18px 14px; } .sl .sl-att { grid-template-columns: 1fr; } .sl .sl-cal { width: 100%; } }
 
-    @media print {
-        body * { visibility: hidden; }
-        #printReceipt, #printReceipt * { visibility: visible; }
-        #printReceipt { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
-
-        .print-pos #printReceipt { max-width: 80mm; margin: 0 auto; }
-        .print-a4 #printReceipt { max-width: 100%; padding: 10mm; }
-    }
-
-    .print-header { text-align: center; border-bottom: 2px dashed #dcdfdd; padding-bottom: 12px; margin-bottom: 14px; }
-    .print-header h4 { margin: 0; font-weight: 800; color: #0f5132; }
-    .print-header .muted { color: #666; font-size: 0.82rem; }
-    .print-info-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 3px 0; gap: 10px; }
-    .print-section { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: #555; margin: 14px 0 4px; }
-    table.print-table { width: 100%; font-size: 0.82rem; border-collapse: collapse; margin-top: 6px; }
-    table.print-table th { text-align: left; border-bottom: 1px solid #ccc; padding: 5px 3px; font-size: 0.72rem; text-transform: uppercase; }
-    table.print-table td { padding: 5px 3px; border-bottom: 1px dashed #eee; }
-    .print-totals { margin-top: 12px; border-top: 2px dashed #dcdfdd; padding-top: 10px; }
-    .print-totals .line { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 3px 0; }
-    .print-totals .grand { font-size: 1.2rem; font-weight: 800; color: #0f5132; border-top: 1px solid #ccc; margin-top: 6px; padding-top: 8px; }
-    .print-due-note { background: #fff3cd; color: #664d03; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 10px; text-align: center; font-weight: 700; }
-    .print-paid-note { background: #d1f5e0; color: #0f5132; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-top: 10px; text-align: center; font-weight: 700; }
-    .print-sign { display: flex; justify-content: space-between; gap: 24px; margin-top: 36px; font-size: 0.75rem; color: #555; }
-    .print-sign div { flex: 1; border-top: 1px solid #999; padding-top: 4px; text-align: center; }
-
-    /* On-screen POS-style slip */
-    .receipt-wrap { display:flex; justify-content:center; }
-    .receipt-slip {
-        width:100%; max-width:420px; background:#fff; border:1px solid #e2e5e3;
-        border-radius:6px; box-shadow:0 2px 10px rgba(20,40,30,.06);
-        padding:20px 18px 16px; font-family:'Courier New', Courier, monospace; color:#1e2b23;
-    }
-    .receipt-slip .r-header { text-align:center; border-bottom:2px dashed #d7dbd8; padding-bottom:12px; margin-bottom:12px; }
-    .receipt-slip .r-header .r-name { font-weight:800; font-size:1.05rem; color:#0f5132; letter-spacing:.02em; }
-    .receipt-slip .r-header .r-sub { font-size:.72rem; color:#6c776f; margin-top:2px; line-height:1.4; }
-    .receipt-slip .r-header .r-invoice { font-size:.7rem; color:#8a938e; margin-top:6px; }
-    .receipt-slip .r-status-chip { display:block; text-align:center; font-size:.68rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:3px 0; margin-bottom:10px; border-radius:4px; background:#eef2f0; color:#1c3d2e; }
-    .receipt-slip .r-row { display:flex; justify-content:space-between; font-size:.78rem; padding:2px 0; gap:10px; }
-    .receipt-slip .r-row .r-k { color:#6c776f; }
-    .receipt-slip .r-row .r-v { font-weight:600; text-align:right; }
-    .receipt-slip .r-divider { border:none; border-top:1px dashed #d7dbd8; margin:10px 0; }
-    .receipt-slip .r-section-title { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:#6c776f; font-weight:700; margin:10px 0 4px; }
-    .receipt-slip .r-att { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; text-align:center; margin:4px 0 2px; }
-    .receipt-slip .r-att div { background:#f4f6f5; border-radius:4px; padding:6px 2px; }
-    .receipt-slip .r-att .n { display:block; font-weight:800; font-size:.95rem; color:#1c3d2e; }
-    .receipt-slip .r-att .l { display:block; font-size:.6rem; text-transform:uppercase; letter-spacing:.03em; color:#8a938e; }
-    .receipt-slip .r-totals { border-top:2px dashed #d7dbd8; margin-top:12px; padding-top:10px; }
-    .receipt-slip .r-totals .r-row { font-size:.8rem; }
-    .receipt-slip .r-totals .r-grand { display:flex; justify-content:space-between; font-size:1.05rem; font-weight:800; color:#0f5132; border-top:1px solid #d7dbd8; margin-top:6px; padding-top:8px; }
-    .receipt-slip .r-totals .r-paid-row { font-size:.78rem; color:#6c776f; padding:2px 0; display:flex; justify-content:space-between; }
-    .receipt-slip .r-totals .r-due-row { display:flex; justify-content:space-between; font-size:.85rem; font-weight:700; margin-top:4px; padding-top:4px; border-top:1px dashed #d7dbd8; }
-    .receipt-slip .r-footer { text-align:center; font-size:.7rem; color:#9aa39d; margin-top:14px; border-top:2px dashed #d7dbd8; padding-top:10px; }
-    .receipt-slip .r-footer .r-thanks { font-weight:700; color:#1c3d2e; font-size:.78rem; margin-bottom:2px; }
-
-    @media (max-width: 991.98px) {
-        .receipt-slip { max-width:100%; }
-    }
+<?= $slipCss ?>
 </style>
 
 <div class="row g-3">
-    <!-- LEFT: on-screen POS-style salary slip -->
+    <!-- LEFT: on-screen formal salary slip -->
     <div class="col-lg-7">
-        <div class="receipt-wrap">
-            <div class="receipt-slip">
-                <div class="r-header">
-                    <div class="r-name"><?= e($resort_name) ?></div>
-                    <div class="r-sub">Salary Slip</div>
-                    <?php if ($resort_address): ?><div class="r-sub"><?= e($resort_address) ?></div><?php endif; ?>
-                    <?php if ($resort_phone || $resort_website): ?>
-                    <div class="r-sub"><?= e($resort_phone) ?><?= ($resort_phone && $resort_website) ? ' · ' : '' ?><?= e($resort_website) ?></div>
-                    <?php endif; ?>
-                    <div class="r-invoice">Slip: <?= e($slipNo) ?><br>Generated <?= e($generated) ?></div>
-                </div>
-
-                <span class="r-status-chip"><?= e($statusText) ?></span>
-
-                <div class="r-row"><span class="r-k">Employee</span><span class="r-v"><?= e($slip['name']) ?></span></div>
-                <div class="r-row"><span class="r-k">Designation</span><span class="r-v"><?= e($slip['designation'] ?: '—') ?></span></div>
-                <div class="r-row"><span class="r-k">Department</span><span class="r-v"><?= e($slip['department'] ?: '—') ?></span></div>
-                <div class="r-row"><span class="r-k">Pay Period</span><span class="r-v"><?= e($period) ?></span></div>
-
-                <hr class="r-divider">
-
-                <div class="r-section-title">Attendance &mdash; <?= e($period) ?></div>
-                <div class="d-print-none"><?= attendanceDiagnostic() ?></div>
-                <?= $attCalHtml ?>
-                <?= $attSummaryHtml ?>
-                <div class="mt-2"><?= attendanceLegend() ?></div>
-
-                <hr class="r-divider">
-
-                <div class="r-section-title">Salary</div>
-                <div class="r-row"><span class="r-k">Basic Monthly Salary</span><span class="r-v"><?= money($slip['basic_salary']) ?></span></div>
-                <div class="r-row"><span class="r-k">Per Day Rate</span><span class="r-v"><?= money($perDay) ?></span></div>
-                <div class="r-row"><span class="r-k">Present Days Paid</span><span class="r-v"><?= (int) $slip['present_days'] ?> day(s)</span></div>
-
-                <div class="r-totals">
-                    <div class="r-grand"><span>Net Payable</span><span><?= money($net) ?></span></div>
-                    <div class="r-paid-row"><span>Total Paid</span><span><?= money($totalPaid) ?></span></div>
-                    <div class="r-due-row" style="color: <?= $due > 0 ? '#b3261e' : '#0f5132' ?>;">
-                        <span>Balance Due</span><span><?= money($due) ?></span>
-                    </div>
-                </div>
-
-                <div class="r-section-title">Payment</div>
-                <?php if ($hasPayment): ?>
-                    <div class="r-row"><span class="r-k">Date</span><span class="r-v"><?= e(date('d M Y', strtotime($slip['payment_date']))) ?></span></div>
-                    <div class="r-row"><span class="r-k">Method</span><span class="r-v"><?= e($slip['payment_method']) ?></span></div>
-                    <div class="r-row"><span class="r-k">Amount</span><span class="r-v"><?= money($slip['amount_paid']) ?></span></div>
-                    <div class="r-row"><span class="r-k">Status</span><span class="r-v"><?= e($slip['payment_status']) ?></span></div>
-                <?php else: ?>
-                    <div class="r-row"><span class="r-k">Payment not recorded yet.</span></div>
-                <?php endif; ?>
-
-                <div class="r-footer">
-                    <div class="r-thanks">Thank you for your service!</div>
-                    This is a computer-generated salary slip.
-                </div>
-            </div>
+        <?= attendanceDiagnostic() ?>
+        <div class="slip-paper">
+            <div class="sl a4 scr"><?= $slipHtml ?></div>
         </div>
     </div>
 
@@ -254,80 +366,43 @@ echo attendanceCalendarCss();
                 <a href="payroll_payment.php?payroll_id=<?= (int) $slip['id'] ?>" class="btn btn-brand btn-sm">
                     <i class="bi bi-cash-coin me-1"></i><?= $hasPayment ? 'Edit Payment' : 'Record Payment' ?>
                 </a>
-                <button class="btn btn-outline-brand btn-sm" onclick="printReceipt('pos')"><i class="bi bi-printer me-1"></i>Print POS</button>
-                <button class="btn btn-brand btn-sm" onclick="printReceipt('a4')"><i class="bi bi-file-earmark-text me-1"></i>Print A4</button>
+                <button type="button" class="btn btn-outline-brand btn-sm" onclick="printReceipt('pos')"><i class="bi bi-printer me-1"></i>Print POS</button>
+                <button type="button" class="btn btn-brand btn-sm" onclick="printReceipt('a4')"><i class="bi bi-file-earmark-text me-1"></i>Print A4</button>
                 <a href="payroll_list.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Payroll</a>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Print layout (hidden on screen; shown only when printing) -->
-<div id="printReceipt">
-    <div class="print-header">
-        <h4><?= e($resort_name) ?></h4>
-        <div class="muted">Salary Slip</div>
-        <?php if ($resort_address): ?><div class="muted"><?= e($resort_address) ?></div><?php endif; ?>
-        <?php if ($resort_phone || $resort_website): ?>
-        <div class="muted"><?= e($resort_phone) ?><?= ($resort_phone && $resort_website) ? ' · ' : '' ?><?= e($resort_website) ?></div>
-        <?php endif; ?>
-        <div class="muted mt-1">Slip: <?= e($slipNo) ?> · <?= e($period) ?></div>
-    </div>
-
-    <div class="print-info-row"><span>Employee</span><span><?= e($slip['name']) ?></span></div>
-    <div class="print-info-row"><span>Designation</span><span><?= e($slip['designation'] ?: '—') ?></span></div>
-    <div class="print-info-row"><span>Department</span><span><?= e($slip['department'] ?: '—') ?></span></div>
-    <div class="print-info-row"><span>Pay Period</span><span><?= e($period) ?></span></div>
-    <div class="print-info-row"><span>Generated</span><span><?= e($generated) ?></span></div>
-
-    <div class="print-section">Attendance &mdash; <?= e($period) ?></div>
-    <?= $attCalHtml ?>
-    <?= $attSummaryHtml ?>
-    <div style="margin-top:6px;"><?= attendanceLegend() ?></div>
-
-    <div class="print-section">Salary</div>
-    <table class="print-table">
-        <tbody>
-            <tr><td>Basic monthly salary</td><td class="text-end"><?= money($slip['basic_salary']) ?></td></tr>
-            <tr><td>Per day rate</td><td class="text-end"><?= money($perDay) ?></td></tr>
-            <tr><td>Present days paid</td><td class="text-end"><?= (int) $slip['present_days'] ?> day(s)</td></tr>
-        </tbody>
-    </table>
-
-    <div class="print-totals">
-        <div class="line grand"><span>Net Payable</span><span><?= money($net) ?></span></div>
-        <div class="line"><span>Total Paid</span><span><?= money($totalPaid) ?></span></div>
-        <div class="line"><span>Balance Due</span><span><?= money($due) ?></span></div>
-    </div>
-
-    <?php if ($hasPayment): ?>
-        <div class="print-section">Payment</div>
-        <div class="print-info-row"><span>Date</span><span><?= e(date('d M Y', strtotime($slip['payment_date']))) ?></span></div>
-        <div class="print-info-row"><span>Method</span><span><?= e($slip['payment_method']) ?></span></div>
-        <div class="print-info-row"><span>Status</span><span><?= e($slip['payment_status']) ?></span></div>
-    <?php endif; ?>
-
-    <?php if ($noPayable): ?>
-        <div class="print-due-note">No salary payable this month.</div>
-    <?php elseif ($isPaid): ?>
-        <div class="print-paid-note">Paid in full</div>
-    <?php else: ?>
-        <div class="print-due-note"><?= $hasPayment ? 'Partly paid. ' : 'Not paid yet. ' ?>Balance <?= money($due) ?></div>
-    <?php endif; ?>
-
-    <div class="print-sign">
-        <div>Employee signature</div>
-        <div>Authorised by</div>
-    </div>
-
-    <div class="text-center text-muted mt-3" style="font-size:0.75rem;">This is a computer-generated salary slip.</div>
-</div>
-
 <script>
+/* Prints only the slip via a hidden iframe, so the navbar/panels are left out and the
+   @page margin can be set per layout: POS (80mm) uses POS_MARGIN, A4 uses A4_MARGIN. */
+var SLIP_HTML   = <?= json_encode($slipHtml, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+var SLIP_CSS    = <?= json_encode($slipCss, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+var SLIP_TITLE  = <?= json_encode(e('Salary Slip - ' . $slip['name'] . ' - ' . $period), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+var POS_MARGIN  = <?= json_encode($posMargin) ?>;   // default POS margin: 0.5cm
+var A4_MARGIN   = <?= json_encode($a4Margin) ?>;
+
 function printReceipt(mode) {
-    document.body.classList.remove('print-pos', 'print-a4');
-    document.body.classList.add(mode === 'a4' ? 'print-a4' : 'print-pos');
-    window.print();
+  var pos  = mode !== 'a4';
+  var page = pos
+    ? '@page{size:80mm auto;margin:' + POS_MARGIN + ';}'
+    : '@page{size:A4 portrait;margin:' + A4_MARGIN + ';}';
+
+  var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + SLIP_TITLE + '</title>'
+          + '<style>' + SLIP_CSS + page + 'html,body{margin:0;padding:0;background:#fff;}</style></head>'
+          + '<body><div class="sl ' + (pos ? 'pos' : 'a4') + '">' + SLIP_HTML + '</div></body></html>';
+
+  var f = document.createElement('iframe');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:fixed;left:-9999px;top:0;width:' + (pos ? '320px' : '900px') + ';height:1200px;border:0;';
+  document.body.appendChild(f);
+  var w = f.contentWindow, d = w.document;
+  d.open(); d.write(doc); d.close();
+  var cleanup = function () { if (f.parentNode) f.parentNode.removeChild(f); };
+  w.onafterprint = cleanup;
+  setTimeout(function () { w.focus(); w.print(); }, 300);
+  setTimeout(cleanup, 120000);   // safety net if afterprint never fires
 }
 </script>
 

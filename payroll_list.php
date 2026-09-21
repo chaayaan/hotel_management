@@ -147,7 +147,7 @@ echo attendanceCalendarCss();
             <td><?= money($r['calculated_salary']) ?></td>
             <td><?= paymentBadge($r['payment_status']) ?></td>
             <td class="text-end text-nowrap">
-              <a href="payroll_salary_slip.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="bi bi-printer me-1"></i>Slip</a>
+              <a href="payroll_salary_slip.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Slip</a>
               <a href="payroll_payment.php?payroll_id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-brand"><i class="bi bi-cash-coin me-1"></i>Payment</a>
             </td>
           </tr>
