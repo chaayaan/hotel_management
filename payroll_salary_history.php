@@ -11,10 +11,16 @@ $filterEmp = $_GET['employee_id'] ?? '';
 
 $sql = "
     SELECT p.*, e.name,
-           pay.amount_paid, pay.status AS payment_status, pay.payment_date, pay.payment_method
+           latest.payment_date, latest.payment_method
     FROM payroll_payroll p
     JOIN payroll_employees e ON e.id = p.employee_id
-    LEFT JOIN payroll_payments pay ON pay.payroll_id = p.id
+    LEFT JOIN payroll_payments latest
+           ON latest.id = (
+                SELECT pay2.id FROM payroll_payments pay2
+                WHERE pay2.payroll_id = p.id
+                ORDER BY pay2.created_at DESC, pay2.id DESC
+                LIMIT 1
+              )
     WHERE 1=1
 ";
 $params = [];
@@ -40,6 +46,8 @@ foreach ($records as $r) {
     $totalPaid   += $r['amount_paid'] ?? 0;
 }
 $outstanding = max(0, $totalEarned - $totalPaid);
+// (both totals come straight from payroll_payroll's live running totals, kept
+// in sync by recalcPayrollTotals() every time a payment is recorded)
 
 require_once __DIR__ . '/navbar.php';
 ?>
@@ -87,15 +95,16 @@ require_once __DIR__ . '/navbar.php';
           <tr><td colspan="7" class="text-center text-muted py-5">No salary records found.</td></tr>
         <?php endif; ?>
         <?php foreach ($records as $r): ?>
+          <?php $rPaid = (float) ($r['amount_paid'] ?? 0); $rDue = (float) ($r['amount_due'] ?? $r['calculated_salary']); ?>
           <tr>
             <td class="fw-semibold"><?= e($r['name']) ?></td>
             <td><?= monthName($r['month']) . ' ' . (int) $r['year'] ?></td>
             <td><?= money($r['calculated_salary']) ?></td>
-            <td><?= $r['amount_paid'] !== null ? money($r['amount_paid']) : '<span class="text-muted">—</span>' ?></td>
+            <td><?= $rPaid > 0 ? money($rPaid) : '<span class="text-muted">—</span>' ?></td>
             <td><?= $r['payment_method'] ? e($r['payment_method']) : '<span class="text-muted">—</span>' ?></td>
-            <td><?= paymentBadge($r['payment_status']) ?></td>
+            <td><?= paymentBadge(paymentStatusFromTotals($rPaid, $rDue)) ?></td>
             <td class="text-end">
-              <a href="payroll_salary_slip.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="bi bi-printer me-1"></i>View slip</a>
+              <a href="payroll_salary_slip.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>View slip</a>
             </td>
           </tr>
         <?php endforeach; ?>

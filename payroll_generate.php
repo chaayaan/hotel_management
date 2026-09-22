@@ -54,6 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           calculated_salary = VALUES(calculated_salary)
     ");
 
+    // Looked up after each upsert to re-sync amount_due (see below); insert_id
+    // is unreliable with ON DUPLICATE KEY UPDATE, so we look the id up by its
+    // natural key instead.
+    $idStmt = $conn->prepare("SELECT id FROM payroll_payroll WHERE employee_id = ? AND month = ? AND year = ?");
+
     $count = 0;
     while ($emp = $empList->fetch_assoc()) {
         $attStmt->bind_param('iii', $emp['id'], $month, $year);
@@ -72,6 +77,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emp['id'], $month, $year, $totalDays, $present, $absent, $leave, $emp['monthly_salary'], $calculated
         );
         $insertStmt->execute();
+
+        // Regenerating never touches amount_paid/amount_due directly (payment
+        // history must survive re-runs), but if calculated_salary changed,
+        // amount_due needs to be re-derived against the new figure.
+        $idStmt->bind_param('iii', $emp['id'], $month, $year);
+        $idStmt->execute();
+        $idRow = $idStmt->get_result()->fetch_assoc();
+        if ($idRow) {
+            recalcPayrollTotals($conn, (int) $idRow['id']);
+        }
+
         $count++;
     }
 

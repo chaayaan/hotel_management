@@ -32,11 +32,9 @@ if ($filterYear !== '' && !in_array((int) $filterYear, $yearOptions, true)) {
 }
 
 $sql = "
-    SELECT p.*, e.name,
-           pay.amount_paid, pay.status AS payment_status
+    SELECT p.*, e.name
     FROM payroll_payroll p
     JOIN payroll_employees e ON e.id = p.employee_id
-    LEFT JOIN payroll_payments pay ON pay.payroll_id = p.id
     WHERE 1=1
 ";
 $params = [];
@@ -62,9 +60,11 @@ $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 $sumSalary = 0;
 $sumPaid   = 0;
+$sumDue    = 0;
 foreach ($rows as $r) {
     $sumSalary += $r['calculated_salary'];
     $sumPaid   += $r['amount_paid'] ?? 0;
+    $sumDue    += $r['amount_due'] ?? 0;
 }
 
 /* ---------- Attendance grid view (needs a specific month + year) ---------- */
@@ -130,14 +130,15 @@ echo attendanceCalendarCss();
       <thead>
         <tr>
           <th>Employee</th><th>Period</th><th class="text-center">Present</th><th class="text-center">Absent</th><th class="text-center">Leave</th>
-          <th>Salary</th><th>Payment</th><th class="text-end">Actions</th>
+          <th>Salary</th><th>Paid</th><th>Due</th><th>Payment</th><th class="text-end">Actions</th>
         </tr>
       </thead>
       <tbody>
         <?php if (!$rows): ?>
-          <tr><td colspan="8" class="text-center text-muted py-5">No payroll records found. <a href="payroll_generate.php">Generate salary</a> for a month to see it here.</td></tr>
+          <tr><td colspan="10" class="text-center text-muted py-5">No payroll records found. <a href="payroll_generate.php">Generate salary</a> for a month to see it here.</td></tr>
         <?php endif; ?>
         <?php foreach ($rows as $r): ?>
+          <?php $rPaid = (float) ($r['amount_paid'] ?? 0); $rDue = (float) ($r['amount_due'] ?? $r['calculated_salary']); ?>
           <tr>
             <td class="fw-semibold"><?= e($r['name']) ?></td>
             <td><?= monthName($r['month']) . ' ' . (int) $r['year'] ?></td>
@@ -145,7 +146,9 @@ echo attendanceCalendarCss();
             <td class="text-center"><?= (int) $r['absent_days'] ?></td>
             <td class="text-center"><?= (int) $r['leave_days'] ?></td>
             <td><?= money($r['calculated_salary']) ?></td>
-            <td><?= paymentBadge($r['payment_status']) ?></td>
+            <td class="<?= $rPaid > 0 ? 'text-success' : 'text-muted' ?>"><?= $rPaid > 0 ? money($rPaid) : '—' ?></td>
+            <td class="<?= $rDue > 0.009 ? 'text-danger' : 'text-muted' ?>"><?= $rDue > 0.009 ? money($rDue) : '—' ?></td>
+            <td><?= paymentBadge(paymentStatusFromTotals($rPaid, $rDue)) ?></td>
             <td class="text-end text-nowrap">
               <a href="payroll_salary_slip.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Slip</a>
               <a href="payroll_payment.php?payroll_id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-brand"><i class="bi bi-cash-coin me-1"></i>Payment</a>
@@ -158,7 +161,9 @@ echo attendanceCalendarCss();
         <tr class="table-light fw-semibold">
           <td colspan="5" class="text-end">Total (<?= count($rows) ?> records)</td>
           <td><?= money($sumSalary) ?></td>
-          <td colspan="2" class="text-success">Paid <?= money($sumPaid) ?></td>
+          <td class="text-success"><?= money($sumPaid) ?></td>
+          <td class="text-danger"><?= money($sumDue) ?></td>
+          <td colspan="2"></td>
         </tr>
       </tfoot>
       <?php endif; ?>

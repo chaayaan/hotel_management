@@ -24,11 +24,17 @@ if ($id <= 0) {
 
 $stmt = $conn->prepare("
     SELECT p.*, e.name, d.name AS designation, d.department,
-           pay.payment_date, pay.payment_method, pay.amount_paid, pay.status AS payment_status
+           latest.payment_date, latest.payment_method
     FROM payroll_payroll p
     JOIN payroll_employees e ON e.id = p.employee_id
     LEFT JOIN payroll_designations d ON d.id = e.designation_id
-    LEFT JOIN payroll_payments pay ON pay.payroll_id = p.id
+    LEFT JOIN payroll_payments latest
+           ON latest.id = (
+                SELECT pay2.id FROM payroll_payments pay2
+                WHERE pay2.payroll_id = p.id
+                ORDER BY pay2.created_at DESC, pay2.id DESC
+                LIMIT 1
+              )
     WHERE p.id = ?
 ");
 $stmt->bind_param('i', $id);
@@ -42,13 +48,16 @@ if (!$slip) {
 }
 
 /* ---------- Derived figures ---------- */
-$perDay     = $slip['total_days'] > 0 ? $slip['basic_salary'] / $slip['total_days'] : 0;
-$net        = (float) $slip['calculated_salary'];
-$hasPayment = $slip['payment_date'] !== null;
-$totalPaid  = (float) ($slip['amount_paid'] ?? 0);
-$due        = max(0, $net - $totalPaid);
-$isPaid     = $hasPayment && $due <= 0.009;
-$noPayable  = $net <= 0.009;
+$perDay        = $slip['total_days'] > 0 ? $slip['basic_salary'] / $slip['total_days'] : 0;
+$net           = (float) $slip['calculated_salary'];
+$hasPayment    = $slip['payment_date'] !== null;
+// amount_paid / amount_due are the running totals kept on payroll_payroll by
+// recalcPayrollTotals() every time a payment transaction is saved.
+$totalPaid     = (float) ($slip['amount_paid'] ?? 0);
+$due           = (float) ($slip['amount_due'] ?? max(0, $net - $totalPaid));
+$isPaid        = $due <= 0.009;
+$noPayable     = $net <= 0.009;
+$paymentStatus = paymentStatusFromTotals($totalPaid, $due);
 $period     = monthName($slip['month']) . ' ' . (int) $slip['year'];
 $slipNo     = 'SAL-' . sprintf('%04d%02d', (int) $slip['year'], (int) $slip['month']) . '-' . str_pad((string) $slip['id'], 4, '0', STR_PAD_LEFT);
 $generated  = date('d M Y', strtotime($slip['generated_at']));
@@ -191,7 +200,7 @@ ob_start();
         <div class="kv"><span class="k">Method</span><span class="v"><?= e($slip['payment_method']) ?></span></div>
     </div>
     <div class="col">
-        <div class="kv"><span class="k">Status</span><span class="v"><?= e($slip['payment_status']) ?></span></div>
+        <div class="kv"><span class="k">Status</span><span class="v"><?= e($paymentStatus ?? 'Pending') ?></span></div>
     </div>
 </div>
 <?php endif; ?>
