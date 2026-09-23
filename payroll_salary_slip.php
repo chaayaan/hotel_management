@@ -23,11 +23,12 @@ if ($id <= 0) {
 }
 
 $stmt = $conn->prepare("
-    SELECT p.*, e.name, d.name AS designation, d.department,
+    SELECT p.*, e.name, d.name AS designation, dept.name AS department,
            latest.payment_date, latest.payment_method
     FROM payroll_payroll p
     JOIN payroll_employees e ON e.id = p.employee_id
     LEFT JOIN payroll_designations d ON d.id = e.designation_id
+    LEFT JOIN payroll_departments dept ON dept.id = d.department_id
     LEFT JOIN payroll_payments latest
            ON latest.id = (
                 SELECT pay2.id FROM payroll_payments pay2

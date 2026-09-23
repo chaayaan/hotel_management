@@ -15,9 +15,10 @@ $year = (int) ($_GET['year'] ?? date('Y'));
 if ($year < 2000 || $year > 2100) $year = (int) date('Y');
 
 $stmt = $conn->prepare("
-    SELECT e.id, e.name, e.status, d.name AS designation, d.department
+    SELECT e.id, e.name, e.status, d.name AS designation, dept.name AS department
     FROM payroll_employees e
     LEFT JOIN payroll_designations d ON d.id = e.designation_id
+    LEFT JOIN payroll_departments dept ON dept.id = d.department_id
     WHERE e.id = ?
 ");
 $stmt->bind_param('i', $empId);

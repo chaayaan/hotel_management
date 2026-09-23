@@ -13,7 +13,7 @@ if ($month < 1 || $month > 12) $month = (int) date('n');
 $year = (int) ($_GET['year'] ?? date('Y'));
 if ($year < 2000 || $year > 2100) $year = (int) date('Y');
 
-$dept         = trim((string) ($_GET['dept'] ?? ''));
+$dept         = (int) ($_GET['dept'] ?? 0);
 $search       = trim((string) ($_GET['q'] ?? ''));
 $statusFilter = (($_GET['status'] ?? 'Active') === 'All') ? 'All' : 'Active';
 
@@ -26,18 +26,18 @@ if (!in_array($year, $yearOptions, true)) {          // keep a bookmarked year s
     sort($yearOptions);
 }
 
-/* ---------- Department list (from designations) ---------- */
+/* ---------- Department list (from payroll_departments) ---------- */
 $departments = [];
 try {
-    $dr = $conn->query("SELECT DISTINCT department FROM payroll_designations ORDER BY department");
-    while ($dr && ($row = $dr->fetch_row())) $departments[] = $row[0];
+    $departments = payrollDepartments($conn);
 } catch (Throwable $ex) { /* dropdown just stays empty */ }
 
 /* ---------- Employees: everyone, whether or not payroll was generated ---------- */
 $sql = "
-    SELECT e.id, e.name, d.name AS designation, d.department
+    SELECT e.id, e.name, d.name AS designation, dept.name AS department
     FROM payroll_employees e
     LEFT JOIN payroll_designations d ON d.id = e.designation_id
+    LEFT JOIN payroll_departments dept ON dept.id = d.department_id
     WHERE 1=1
 ";
 $params = [];
@@ -45,10 +45,10 @@ $types  = '';
 if ($statusFilter === 'Active') {
     $sql .= " AND e.status = 'Active'";
 }
-if ($dept !== '') {
-    $sql     .= " AND d.department = ?";
+if ($dept !== 0) {
+    $sql     .= " AND dept.id = ?";
     $params[] = $dept;
-    $types   .= 's';
+    $types   .= 'i';
 }
 if ($search !== '') {
     $sql     .= " AND e.name LIKE ?";
@@ -77,24 +77,30 @@ $att  = $people ? loadMonthAttendance($conn, $month, $year, array_column($people
 $grid = $people ? renderAttendanceGrid($people, $att, $month, $year) : '';
 
 /* ---------- Print version: formal attendance sheet (A4 landscape, black & white) ---------- */
+$deptName = '';
+if ($dept !== 0) {
+    foreach ($departments as $d) {
+        if ((int) $d['id'] === $dept) { $deptName = $d['name']; break; }
+    }
+}
 $printDoc = $people ? attendancePrintDocument([
     'org'    => attResortDetails($conn),
     'month'  => $month,
     'year'   => $year,
     'people' => $people,
     'att'    => $att,
-    'dept'   => $dept,
+    'dept'   => $deptName,
     'status' => $statusFilter,
     'search' => $search,
 ]) : '';
 
 /* ---------- Prev / next month links ---------- */
-$baseQs = ['dept' => $dept, 'q' => $search, 'status' => $statusFilter];
+$baseQs = ['dept' => $dept ?: '', 'q' => $search, 'status' => $statusFilter];
 $prevM  = $month === 1  ? 12 : $month - 1;  $prevY = $month === 1  ? $year - 1 : $year;
 $nextM  = $month === 12 ? 1  : $month + 1;  $nextY = $month === 12 ? $year + 1 : $year;
 $prevUrl = '?' . http_build_query($baseQs + ['month' => $prevM, 'year' => $prevY]);
 $nextUrl = '?' . http_build_query($baseQs + ['month' => $nextM, 'year' => $nextY]);
-$isDefault = ($month === (int) date('n') && $year === $currentYear && $dept === '' && $search === '' && $statusFilter === 'Active');
+$isDefault = ($month === (int) date('n') && $year === $currentYear && $dept === 0 && $search === '' && $statusFilter === 'Active');
 
 require_once __DIR__ . '/navbar.php';
 echo attendanceCalendarCss();
@@ -118,7 +124,7 @@ echo attendanceCalendarCss();
     <select name="dept" class="form-select" style="width:auto;">
       <option value="">All departments</option>
       <?php foreach ($departments as $d): ?>
-        <option value="<?= e($d) ?>" <?= $dept === $d ? 'selected' : '' ?>><?= e($d) ?></option>
+        <option value="<?= (int) $d['id'] ?>" <?= $dept === (int) $d['id'] ? 'selected' : '' ?>><?= e($d['name']) ?></option>
       <?php endforeach; ?>
     </select>
     <select name="status" class="form-select" style="width:auto;">

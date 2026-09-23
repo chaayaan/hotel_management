@@ -34,13 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkIns  = $_POST['check_in'] ?? [];
     $checkOuts = $_POST['check_out'] ?? [];
 
-    $stmt = $conn->prepare("
-        INSERT INTO payroll_attendance (employee_id, attendance_date, status, check_in, check_out)
-        VALUES (?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE status = VALUES(status), check_in = VALUES(check_in), check_out = VALUES(check_out)
-    ");
-
-    $saved = 0;
+    // Build one multi-row INSERT instead of looping execute() per employee,
+    // so a save is a single round-trip to the database regardless of staff count.
+    $values = [];
+    $types  = '';
+    $params = [];
     foreach ($statuses as $empId => $status) {
         if (!in_array($status, $allowed, true)) {
             continue;
@@ -50,9 +48,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $out      = $checkOuts[$empId] ?? '';
         $checkIn  = preg_match('/^\d{2}:\d{2}$/', $in) ? $in . ':00' : null;
         $checkOut = preg_match('/^\d{2}:\d{2}$/', $out) ? $out . ':00' : null;
-        $stmt->bind_param('issss', $empId, $postDate, $status, $checkIn, $checkOut);
+
+        $values[] = '(?, ?, ?, ?, ?)';
+        $types   .= 'issss';
+        array_push($params, $empId, $postDate, $status, $checkIn, $checkOut);
+    }
+
+    $saved = 0;
+    if ($values) {
+        $sql = "
+            INSERT INTO payroll_attendance (employee_id, attendance_date, status, check_in, check_out)
+            VALUES " . implode(', ', $values) . "
+            ON DUPLICATE KEY UPDATE status = VALUES(status), check_in = VALUES(check_in), check_out = VALUES(check_out)
+        ";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
-        $saved++;
+        $saved = count($values);
     }
 
     $postDept = (int) ($_POST['department'] ?? 0);
@@ -96,7 +108,7 @@ require_once __DIR__ . '/navbar.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
     <div class="fw-semibold fs-5"><?= date('l, d F Y', strtotime($date)) ?></div>
-    <div class="text-muted small">Rows without a saved record start as Present. Nothing counts until you save.</div>
+    <div class="text-muted small">Rows without a saved record start as Absent. Nothing counts until you save.</div>
   </div>
   <form method="GET" class="d-flex gap-2 align-items-center">
     <select name="department" class="form-select" style="width:auto;" onchange="this.form.submit()">
@@ -130,7 +142,7 @@ require_once __DIR__ . '/navbar.php';
         <thead>
           <tr>
             <th>Employee</th>
-            <th style="width:160px;">Status</th>
+            <th style="width:190px;">Status</th>
             <th style="width:150px;">Check-in</th>
             <th style="width:150px;">Check-out</th>
           </tr>
@@ -139,7 +151,7 @@ require_once __DIR__ . '/navbar.php';
           <?php if (!$employees): ?>
             <tr><td colspan="4" class="text-center text-muted py-5"><?= $department !== 0 ? 'No active employees in that department.' : 'No active employees.' ?> <a href="payroll_employees.php">Add an employee</a>.</td></tr>
           <?php endif; ?>
-          <?php foreach ($employees as $emp): $status = $emp['status'] ?? 'Present'; $id = (int) $emp['id']; ?>
+          <?php foreach ($employees as $emp): $status = $emp['status'] ?? 'Absent'; $id = (int) $emp['id']; ?>
             <tr>
               <td>
                 <div class="fw-semibold"><?= e($emp['name']) ?>
@@ -151,14 +163,25 @@ require_once __DIR__ . '/navbar.php';
                 </div>
               </td>
               <td>
-                <select name="status[<?= $id ?>]" class="form-select form-select-sm att-status">
-                  <?php foreach (['Present', 'Absent', 'Leave'] as $opt): ?>
-                    <option value="<?= $opt ?>" <?= $status === $opt ? 'selected' : '' ?>><?= $opt ?></option>
+                <div class="att-toggle" role="group" aria-label="Attendance status for <?= e($emp['name']) ?>">
+                  <?php foreach (['Present' => 'P', 'Absent' => 'A', 'Leave' => 'L'] as $opt => $short): ?>
+                    <input type="radio" class="btn-check att-status" name="status[<?= $id ?>]" id="st_<?= $id ?>_<?= $opt ?>" value="<?= $opt ?>" <?= $status === $opt ? 'checked' : '' ?> autocomplete="off">
+                    <label class="att-toggle-btn att-<?= strtolower($opt) ?>" for="st_<?= $id ?>_<?= $opt ?>"><?= $opt ?></label>
                   <?php endforeach; ?>
-                </select>
+                </div>
               </td>
-              <td><input type="time" name="check_in[<?= $id ?>]" class="form-control form-control-sm" value="<?= e(toTimeInput($emp['check_in'])) ?>"></td>
-              <td><input type="time" name="check_out[<?= $id ?>]" class="form-control form-control-sm" value="<?= e(toTimeInput($emp['check_out'])) ?>"></td>
+              <td>
+                <div class="att-time-group">
+                  <input type="time" name="check_in[<?= $id ?>]" class="form-control form-control-sm att-time-in" value="<?= e(toTimeInput($emp['check_in'])) ?>">
+                  <button type="button" class="btn btn-sm btn-outline-secondary att-now-btn" title="Set to current time"><i class="bi bi-stopwatch"></i></button>
+                </div>
+              </td>
+              <td>
+                <div class="att-time-group">
+                  <input type="time" name="check_out[<?= $id ?>]" class="form-control form-control-sm att-time-out" value="<?= e(toTimeInput($emp['check_out'])) ?>">
+                  <button type="button" class="btn btn-sm btn-outline-secondary att-now-btn" title="Set to current time"><i class="bi bi-stopwatch"></i></button>
+                </div>
+              </td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -171,10 +194,41 @@ require_once __DIR__ . '/navbar.php';
   <?php endif; ?>
 </form>
 
+<style>
+.att-toggle { display: inline-flex; border-radius: .5rem; overflow: hidden; border: 1px solid #dee2e6; }
+.att-toggle-btn {
+  padding: .3rem .75rem; font-size: .8rem; font-weight: 600; cursor: pointer;
+  background: #fff; color: #6c757d; border-right: 1px solid #dee2e6; user-select: none;
+  transition: background-color .15s, color .15s;
+}
+.att-toggle-btn:last-child { border-right: 0; }
+.att-toggle-btn:hover { background: #f1f3f5; }
+.btn-check:checked + .att-toggle-btn.att-present { background: #198754; color: #fff; }
+.btn-check:checked + .att-toggle-btn.att-absent  { background: #dc3545; color: #fff; }
+.btn-check:checked + .att-toggle-btn.att-leave   { background: #fd7e14; color: #fff; }
+.att-time-group { display: flex; gap: .25rem; align-items: center; }
+.att-time-group input[type="time"] { min-width: 105px; }
+.att-now-btn { padding: .25rem .45rem; line-height: 1; }
+</style>
+
 <script>
 document.querySelectorAll('[data-set-all]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-        document.querySelectorAll('.att-status').forEach(function (sel) { sel.value = btn.dataset.setAll; });
+        document.querySelectorAll('.att-status').forEach(function (radio) {
+            radio.checked = (radio.value === btn.dataset.setAll);
+        });
+    });
+});
+
+// "Now" chip: fills the time input in the same row cell with the current HH:MM
+document.querySelectorAll('.att-now-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var input = btn.closest('.att-time-group').querySelector('input[type="time"]');
+        var now = new Date();
+        var hh = String(now.getHours()).padStart(2, '0');
+        var mm = String(now.getMinutes()).padStart(2, '0');
+        input.value = hh + ':' + mm;
+        input.dispatchEvent(new Event('change'));
     });
 });
 </script>
