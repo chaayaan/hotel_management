@@ -13,7 +13,8 @@ require_once __DIR__ . '/payroll_functions.php';
 $page_title  = 'Employees';
 $active_menu = 'payroll_employees';
 
-$departments = payrollDepartments();
+$departments = payrollDepartments($conn); // all, for filter bar
+$deptIds     = array_column($departments, 'id');
 $form        = ['id' => 0, 'name' => '', 'designation_id' => 0, 'monthly_salary' => '', 'status' => 'Active'];
 $formError   = '';
 $reopenModal = false;
@@ -96,24 +97,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* ---------- Designation dropdown data (active only, grouped by department) ---------- */
 $desigRows = $conn->query("
-    SELECT id, name, department FROM payroll_designations
-    WHERE status = 'Active'
-    ORDER BY FIELD(department, 'Hotel', 'Restaurant', 'Resort'), name
+    SELECT d.id, d.name, dept.name AS department
+    FROM payroll_designations d
+    LEFT JOIN payroll_departments dept ON dept.id = d.department_id
+    WHERE d.status = 'Active'
+    ORDER BY dept.name, d.name
 ")->fetch_all(MYSQLI_ASSOC);
 $desigByDept = [];
 foreach ($desigRows as $d) {
-    $desigByDept[$d['department']][] = $d;
+    $desigByDept[$d['department'] ?? 'Unassigned'][] = $d;
 }
 
 /* ---------- Read: list with optional search + department + status filter ---------- */
 $q            = trim($_GET['q'] ?? '');
-$deptFilter   = $_GET['department'] ?? '';
+$deptFilter   = (int) ($_GET['department'] ?? 0);
 $statusFilter = $_GET['status'] ?? '';
 
 $sql = "
-    SELECT e.*, d.name AS designation_name, d.department
+    SELECT e.*, d.name AS designation_name, dept.name AS department, dept.id AS department_id
     FROM payroll_employees e
     LEFT JOIN payroll_designations d ON d.id = e.designation_id
+    LEFT JOIN payroll_departments dept ON dept.id = d.department_id
     WHERE 1=1
 ";
 $params = [];
@@ -125,12 +129,12 @@ if ($q !== '') {
     $params[] = $like;
     $types   .= 'ss';
 }
-if (in_array($deptFilter, $departments, true)) {
-    $sql     .= " AND d.department = ?";
+if (in_array($deptFilter, $deptIds, true)) {
+    $sql     .= " AND dept.id = ?";
     $params[] = $deptFilter;
-    $types   .= 's';
+    $types   .= 'i';
 } else {
-    $deptFilter = '';
+    $deptFilter = 0;
 }
 if (in_array($statusFilter, ['Active', 'Inactive'], true)) {
     $sql     .= " AND e.status = ?";
@@ -148,7 +152,7 @@ if ($types) {
 $stmt->execute();
 $employees = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-$filtered = ($q !== '' || $deptFilter !== '' || $statusFilter !== '');
+$filtered = ($q !== '' || $deptFilter !== 0 || $statusFilter !== '');
 
 require_once __DIR__ . '/navbar.php';
 ?>
@@ -162,7 +166,7 @@ require_once __DIR__ . '/navbar.php';
     <select name="department" class="form-select" style="width:auto;" onchange="this.form.submit()">
       <option value="">All departments</option>
       <?php foreach ($departments as $dept): ?>
-        <option value="<?= e($dept) ?>" <?= $deptFilter === $dept ? 'selected' : '' ?>><?= e($dept) ?></option>
+        <option value="<?= (int) $dept['id'] ?>" <?= $deptFilter === (int) $dept['id'] ? 'selected' : '' ?>><?= e($dept['name']) ?></option>
       <?php endforeach; ?>
     </select>
     <select name="status" class="form-select" style="width:auto;" onchange="this.form.submit()">
@@ -209,7 +213,7 @@ require_once __DIR__ . '/navbar.php';
                 <span class="badge bg-warning-subtle text-warning-emphasis">Not assigned</span>
               <?php endif; ?>
             </td>
-            <td><?= departmentBadge($emp['department']) ?></td>
+            <td><?= departmentBadge($emp['department'], $emp['department_id']) ?></td>
             <td><?= money($emp['monthly_salary']) ?></td>
             <td><span class="badge <?= $emp['status'] === 'Active' ? 'bg-success' : 'bg-secondary' ?>"><?= e($emp['status']) ?></span></td>
             <td class="text-end text-nowrap">

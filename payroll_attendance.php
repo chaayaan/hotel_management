@@ -11,12 +11,13 @@ if (!isValidDate($date)) {
     $date = date('Y-m-d');
 }
 
-$departments = payrollDepartments();
-$department  = $_GET['department'] ?? '';
-if (!in_array($department, $departments, true)) {
-    $department = '';
+$departments = payrollDepartments($conn);
+$deptIds     = array_column($departments, 'id');
+$department  = (int) ($_GET['department'] ?? 0);
+if (!in_array($department, $deptIds, true)) {
+    $department = 0;
 }
-$deptQuery = $department !== '' ? '&department=' . urlencode($department) : '';
+$deptQuery = $department !== 0 ? '&department=' . $department : '';
 
 /* ---------- Save ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -54,8 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $saved++;
     }
 
-    $postDept = $_POST['department'] ?? '';
-    $postDeptQuery = in_array($postDept, $departments, true) ? '&department=' . urlencode($postDept) : '';
+    $postDept = (int) ($_POST['department'] ?? 0);
+    $postDeptQuery = in_array($postDept, $deptIds, true) ? '&department=' . $postDept : '';
 
     flash_set('success', 'Attendance saved for ' . date('d M Y', strtotime($postDate)) . " ($saved employees).");
     header('Location: payroll_attendance.php?date=' . urlencode($postDate) . $postDeptQuery);
@@ -64,20 +65,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* ---------- Load ---------- */
 $sql = "
-    SELECT e.id, e.name, d.name AS designation, d.department, a.status, a.check_in, a.check_out
+    SELECT e.id, e.name, d.name AS designation, dept.name AS department, dept.id AS department_id,
+           a.status, a.check_in, a.check_out
     FROM payroll_employees e
     LEFT JOIN payroll_designations d ON d.id = e.designation_id
+    LEFT JOIN payroll_departments dept ON dept.id = d.department_id
     LEFT JOIN payroll_attendance a ON a.employee_id = e.id AND a.attendance_date = ?
     WHERE e.status = 'Active'
 ";
-if ($department !== '') {
-    $sql .= " AND d.department = ?";
+if ($department !== 0) {
+    $sql .= " AND dept.id = ?";
 }
 $sql .= " ORDER BY e.name ASC";
 
 $stmt = $conn->prepare($sql);
-if ($department !== '') {
-    $stmt->bind_param('ss', $date, $department);
+if ($department !== 0) {
+    $stmt->bind_param('si', $date, $department);
 } else {
     $stmt->bind_param('s', $date);
 }
@@ -99,7 +102,7 @@ require_once __DIR__ . '/navbar.php';
     <select name="department" class="form-select" style="width:auto;" onchange="this.form.submit()">
       <option value="">All departments</option>
       <?php foreach ($departments as $dept): ?>
-        <option value="<?= e($dept) ?>" <?= $department === $dept ? 'selected' : '' ?>><?= e($dept) ?></option>
+        <option value="<?= (int) $dept['id'] ?>" <?= $department === (int) $dept['id'] ? 'selected' : '' ?>><?= e($dept['name']) ?></option>
       <?php endforeach; ?>
     </select>
     <a href="?date=<?= e($prevDate) . e($deptQuery) ?>" class="btn btn-outline-brand" title="Previous day"><i class="bi bi-chevron-left"></i></a>
@@ -134,7 +137,7 @@ require_once __DIR__ . '/navbar.php';
         </thead>
         <tbody>
           <?php if (!$employees): ?>
-            <tr><td colspan="4" class="text-center text-muted py-5"><?= $department !== '' ? 'No active ' . e($department) . ' employees.' : 'No active employees.' ?> <a href="payroll_employees.php">Add an employee</a>.</td></tr>
+            <tr><td colspan="4" class="text-center text-muted py-5"><?= $department !== 0 ? 'No active employees in that department.' : 'No active employees.' ?> <a href="payroll_employees.php">Add an employee</a>.</td></tr>
           <?php endif; ?>
           <?php foreach ($employees as $emp): $status = $emp['status'] ?? 'Present'; $id = (int) $emp['id']; ?>
             <tr>
@@ -144,7 +147,7 @@ require_once __DIR__ . '/navbar.php';
                 </div>
                 <div class="text-muted small">
                   <?= $emp['designation'] ? e($emp['designation']) : 'No designation' ?>
-                  <?php if ($emp['department']): ?><span class="ms-1"><?= departmentBadge($emp['department']) ?></span><?php endif; ?>
+                  <?php if ($emp['department']): ?><span class="ms-1"><?= departmentBadge($emp['department'], $emp['department_id']) ?></span><?php endif; ?>
                 </div>
               </td>
               <td>

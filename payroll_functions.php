@@ -70,20 +70,44 @@ if (!function_exists('paymentBadge')) {
 }
 
 if (!function_exists('payrollDepartments')) {
-    /** Fixed departments a designation can belong to. */
-    function payrollDepartments() {
-        return ['Hotel', 'Restaurant', 'Resort'];
+    /**
+     * Departments a designation can belong to, read from payroll_departments.
+     * $activeOnly = true  -> only Active departments (use for dropdowns on add/edit forms)
+     * $activeOnly = false -> all departments (use for filters, so existing data still shows)
+     * Returns rows: id, name, status.
+     */
+    function payrollDepartments(mysqli $conn, bool $activeOnly = false): array {
+        $sql = "SELECT id, name, status FROM payroll_departments";
+        if ($activeOnly) {
+            $sql .= " WHERE status = 'Active'";
+        }
+        $sql .= " ORDER BY name ASC";
+        return $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+    }
+}
+
+if (!function_exists('departmentBadgeColors')) {
+    /** Deterministic color class for a department, based on its id (cycles through a palette). */
+    function departmentBadgeColors(int $departmentId): string {
+        $palette = [
+            'bg-primary-subtle text-primary-emphasis',
+            'bg-warning-subtle text-warning-emphasis',
+            'bg-success-subtle text-success-emphasis',
+            'bg-info-subtle text-info-emphasis',
+            'bg-danger-subtle text-danger-emphasis',
+            'bg-secondary-subtle text-secondary-emphasis',
+        ];
+        return $palette[$departmentId % count($palette)];
     }
 }
 
 if (!function_exists('departmentBadge')) {
-    function departmentBadge($department) {
-        switch ($department) {
-            case 'Hotel':      $cls = 'bg-primary-subtle text-primary-emphasis'; break;
-            case 'Restaurant': $cls = 'bg-warning-subtle text-warning-emphasis'; break;
-            case 'Resort':     $cls = 'bg-success-subtle text-success-emphasis'; break;
-            default:           return '<span class="text-muted">—</span>';
+    /** Pass the department name for display and its id to pick a stable color. */
+    function departmentBadge(?string $department, ?int $departmentId = null) {
+        if (!$department) {
+            return '<span class="text-muted">—</span>';
         }
+        $cls = departmentBadgeColors((int) $departmentId);
         return '<span class="badge ' . $cls . '">' . htmlspecialchars($department, ENT_QUOTES, 'UTF-8') . '</span>';
     }
 }
