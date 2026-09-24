@@ -8,6 +8,19 @@ $active_menu = 'payroll_dashboard';
 
 $totalEmployees = (int) $conn->query("SELECT COUNT(*) c FROM payroll_employees WHERE status = 'Active'")->fetch_assoc()['c'];
 
+/* ---------- Active employees by department (dynamic departments) ---------- */
+$deptBreakdown = $conn->query("
+    SELECT dept.id, dept.name, COUNT(e.id) AS emp_count
+    FROM payroll_departments dept
+    LEFT JOIN payroll_designations d ON d.department_id = dept.id
+    LEFT JOIN payroll_employees e ON e.designation_id = d.id AND e.status = 'Active'
+    WHERE dept.status = 'Active'
+    GROUP BY dept.id
+    ORDER BY emp_count DESC, dept.name ASC
+")->fetch_all(MYSQLI_ASSOC);
+$deptMax = 0;
+foreach ($deptBreakdown as $db) { $deptMax = max($deptMax, (int) $db['emp_count']); }
+
 $today     = date('Y-m-d');
 $todayStmt = $conn->prepare("SELECT status, COUNT(*) c FROM payroll_attendance WHERE attendance_date = ? GROUP BY status");
 $todayStmt->bind_param('s', $today);
@@ -84,6 +97,8 @@ require_once __DIR__ . '/navbar.php';
     font-size: .72rem; font-weight: 600; padding: .2rem .55rem; border-radius: 999px;
   }
   .pd-due-row:hover { background: rgba(0,0,0,.02); }
+  .pd-dept-bar { height: 6px; border-radius: 999px; background: #eef1f0; overflow: hidden; }
+  .pd-dept-bar > span { display: block; height: 100%; background: var(--brand-primary, #0f5132); border-radius: 999px; transition: width .3s ease; }
   .pd-avatar {
     width: 34px; height: 34px; border-radius: 50%;
     background: #e9f5ee; color: #146c43; font-weight: 700; font-size: .85rem;
@@ -149,9 +164,9 @@ require_once __DIR__ . '/navbar.php';
   </div>
 <?php endif; ?>
 
-<!-- ===== Trend + Due list ===== -->
+<!-- ===== Trend + Department breakdown + Due list ===== -->
 <div class="row g-3 mb-4">
-  <div class="col-lg-7">
+  <div class="col-lg-5">
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span>Payroll trend &middot; last 6 months</span>
@@ -167,7 +182,30 @@ require_once __DIR__ . '/navbar.php';
       </div>
     </div>
   </div>
-  <div class="col-lg-5">
+  <div class="col-lg-3">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Employees by department</span>
+        <a href="payroll_departments.php" class="small">Manage</a>
+      </div>
+      <div class="card-body">
+        <?php if (!$deptBreakdown): ?>
+          <div class="text-muted text-center py-4 small">No departments yet. <a href="payroll_departments.php">Add one</a>.</div>
+        <?php else: ?>
+          <?php foreach ($deptBreakdown as $db): $cnt = (int) $db['emp_count']; $pct = $deptMax > 0 ? round($cnt / $deptMax * 100) : 0; ?>
+            <div class="mb-3">
+              <div class="d-flex justify-content-between small mb-1">
+                <span class="fw-semibold text-truncate"><?= departmentBadge($db['name'], (int) $db['id']) ?></span>
+                <span class="text-muted"><?= $cnt ?></span>
+              </div>
+              <div class="pd-dept-bar"><span style="width:<?= $cnt > 0 ? max(6, $pct) : 0 ?>%"></span></div>
+            </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span>Largest outstanding balances</span>
